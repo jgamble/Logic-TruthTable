@@ -1,0 +1,21 @@
+Build.PL
+Changes
+lib/Logic/TruthTable.pm
+lib/Logic/TruthTable/Util.pm
+MANIFEST			This list of files
+README
+t/00-load.t
+t/02-utilterms.t
+t/11-hashref.t
+t/12-qm.t
+t/13-espresso.t
+t/20-rps.t
+t/21-rpsplus.t
+t/30-readcsv.t
+t/31-writecsv.t
+t/manifest.t
+t/pod.t
+Makefile.PL
+LICENSE
+META.yml
+META.json
