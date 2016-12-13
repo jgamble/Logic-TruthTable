@@ -19,7 +19,7 @@ my %col_dcs = (
 
 my $ttable = Logic::TruthTable->new(
 	width => 4,
-	funcs => [qw(w1 w0)],
+	functions => [qw(w1 w0)],
 	vars => [qw(a1 a0 b1 b0)],
 	columns => [{
 		minterms => $col_mins{w1},
@@ -39,15 +39,14 @@ my $ttable = Logic::TruthTable->new(
 my $data;
 sub csvwrite
 {
-	$ttable->export_csv(write_handle=> \*STDOUT, dc => 'X');
+	$ttable->export_csv(write_handle => \*STDOUT, dc => 'X');
 }
 
 #
 # Read in the __DATA__, and compare it
 # to the table's CSV output.
 #
-local $/ = undef;
-$data = <DATA>;
+{ local $/ = undef; $data = <DATA>; }
 
 stdout_is(\&csvwrite, $data, "Error writing CSV.");
 

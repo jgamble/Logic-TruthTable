@@ -7,7 +7,7 @@ use Test::More;
 use Logic::TruthTable;
 
 #use Test::More skip_all => "Some day we'll be able to do this.";
-use Test::More tests => 4;
+use Test::More tests => 6;
 
 #
 # Rock-Paper-Scissors winners table.
@@ -39,7 +39,7 @@ my $table = Logic::TruthTable->new(
 	title => "Rock (01) Paper (10) Scissors (11)  'Winner' table.",
 	width => 4,
 	vars => [qw(a1 a0 b1 b0)],
-	funcs => [qw(w1 w0)],
+	functions => [qw(w1 w0)],
 	columns => [
 		{
 			minterms => [ 6, 9, 11, 14 ],
@@ -52,6 +52,16 @@ my $table = Logic::TruthTable->new(
 	],
 );
 
+#
+# Test the two column titles (should default to the function names).
+#
+my(@functions) = @{ $table->functions };
+
+for my $c_idx (0..$#functions)
+{
+	my $col = $table->get_fncolumn($c_idx);
+	ok($col->title, $functions[$c_idx]);
+}
 
 my @soln = $table->solve();
 

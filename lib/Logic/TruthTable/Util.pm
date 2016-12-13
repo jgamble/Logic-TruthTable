@@ -41,22 +41,40 @@ creating or manipulating term lists for Logic::TruthTable.
 =head2 FUNCTIONS
 
 =head3 push_minterm_columns()
+
 =head3 push_maxterm_columns()
 
+    push_minterm_columns($idx, $dir, \@colx, \@coly, \@colz);
+
+or
+
+    push_maxterm_columns($idx, $dir, \@colx, \@coly, \@colz);
+
 Often the outputs to be simulated by boolean expressions are values that
-are split across more than one column. For example, say that you have a
-function to direct a pointer that uses the eight
+are split across more than one column. For example, say that you want
+to model a function to direct a pointer that uses the eight
 L<cardinal and ordinal |https://en.wikipedia.org/wiki/Points_of_the_compass#Compass_point_names>
 compass directions, from North (value 0) to NorthWest (value 7).
 
-Numbering these directions takes three bits, which means we'd need three
+Numbering these directions takes three bits, which means you'd need three
 columns to represent them.
 
-To make it easier to create these columns, push_minterm_columns()
-(or, if you prefer, push_maxterm_columns()) will take a value
-of your function and, for each set (or unset) bit, will push the
-minterm (or maxterm) onto each corresponding column.
+To make it easier to create these columns, C<push_minterm_columns()>
+(or, if you prefer, C<push_maxterm_columns()>) will take a value
+from your function and, for each set bit (or if using maxterms,
+unset bit), will push the minterm (or maxterm) onto each array
+corresponding to its column.
 
+For example, if the value of row 20 is 13 (in binary C<0b1101>),
+then a call to C<push_minterm_umns(20, 13, \@w, \@x, \@y, \@z);>
+will push 20 onto array variables C<@w>, C<@x>, and C<@z>, while a call to
+C<push_maxterm_umns(20, 13, \@w, \@x, \@y, \@z);> will push a 20 onto
+array variable C<@y> only.
+
+Bit values past the available columns will simply be dropped, while
+excess columns will either either never have terms pushed on them
+(C<push_minterm_columns()>) or always have terms pushed on them
+(C<push_maxterm_columns()>).
 
 For example:
 
@@ -99,7 +117,7 @@ truth table.
                 title => "Sandusky Path",
                 width => 6,
                 vars => [qw(A B C D E F)],
-                funcs => [qw(X Y Z)],
+                functions => [qw(X Y Z)],
                 columns => [
                     {
                         minterms => \@colx,
@@ -114,6 +132,118 @@ truth table.
                         dontcares => \@dontcares,
                     } ],
         );
+
+In some cases you may not even know how many columns of output (or input)
+you will need for your problem. But since the vars, functions, and columns
+attributes are all array references, these can be created programatically:
+
+    #
+    # Create a truth table for an extended Rock Paper Scissors game.
+    #
+    my $tt = extended_rps(7);
+
+    #
+    # We may not have the faster algorthm installed, and the
+    # truth table may be very large, so save the table as a
+    # file for Logic Friday.
+    #
+    $tt->export_csv(dc => 'X', write_handle => \*STDOUT);
+    exit(0);
+
+    #
+    # 'Winner' function for an extended Rock Paper Scissors game.
+    #
+    sub rpswinner
+    {
+        my($player_a, $player_b, $length) = @_;
+
+        return 0 if ($player_a == $player_b);    # Tie, of course.
+
+        my $val = $player_a - $player_b + $length;
+
+        return $player_a if ($val % 3 == 1);
+        return $player_b;
+    }
+
+    #
+    # Create an extended Rock Paper Scissors 'winners' table.
+    # Given two throws, return which of the two throws wins.
+    # For example, if the two throws in a game of
+    # Rock Paper Scissors Spock Lizard are Paper and Lizard, the
+    # output columns would indicate Lizard (eats Paper).
+    #
+    # Throws are numbers from 1 (Rock) onward, with Tie being 0.
+    #
+    # Returns the Logic::TruthTable object.
+    #
+    sub extended_rps
+    {
+        my($n) = @_;
+        my @dontcares;
+
+        #
+        # How many binary columns do we need represent a throw?
+        #
+        my $w = length(sprintf("%b", $n));
+
+        my $two_exp_w = 2 ** $w;
+        my $length = $two_exp_w - 1;
+
+        #
+        # Make an empty array of output terms.
+        #
+        my @aterms;
+        push @aterms, [] for (0 .. $w-1);
+
+        #
+        # Now, all the possible combinations of player A vs. player B.
+        #
+        for my $j (0 .. $length)
+        {
+            for my $k (0 .. $length)
+            {
+                my $row = $j * $two_exp_w + $k;
+                if ($k == 0 or $j == 0)
+                {
+                    push @dontcares, $row;
+                }
+                else
+                {
+                    my $val = rpswinner($j, $k, $length);
+                    push_minterm_columns($row, $val, @aterms);
+                }
+            }
+        }
+        #
+        # Let's create the table's columns.
+        #
+        my @columns;
+
+        for my $idx (0 .. $w-1)
+        {
+            push @columns, {dontcares => [@dontcares],
+                            minterms => [@{$aterms[$idx]}], };
+        }
+
+        #
+        # And the variable and function names.
+        # (We are assuming fewer than 1024 choices here.)
+        #
+        my @vars_a = reverse(('a0' .. 'a9')[0 .. $w-1]);
+        my @vars_b = reverse(('b0' .. 'b9')[0 .. $w-1]);
+        my @fns = reverse(('w0' .. 'w9')[0 .. $w-1]);
+
+        my $tt = Logic::TruthTable->new(
+            title => "$n-throw Rock Paper Scissors (extended)",
+            width =>  2 * $w,
+            vars => [@vars_a, @vars_b],
+            functions => [@fns],
+            columns => [@columns],
+        );
+
+        return $tt;
+    }
+
 
 =cut
 
@@ -156,7 +286,7 @@ sub push_maxterm_columns
 Return the list of terms that correspond to the set bits of a
 variable's column.
 
-    my @terms = var_column($width, 0);
+    my @terms = var_column($width, $col);
 
 For example, in a three-variable table
 
@@ -204,13 +334,13 @@ sub var_column
 
 =head3 reverse_terms()
 
-reverse_terms() reverses terms by index. For example:
+Reverses the list of terms by index. For example, within a four-bit range:
 
     $width = 4;                  # values range 0 .. 15.
     @terms = (1, 3, 6, 8, 13, 14);
     @terms = reverse_terms($width, \@terms);
 
-After this the values in C<@terms> will be (14, 12, 9, 7, 2, 1).
+The values in C<@terms> will become (14, 12, 9, 7, 2, 1).
 
 =cut
 
@@ -224,16 +354,17 @@ sub reverse_terms
 
 =head3 rotate_terms()
 
-rotate_terms() rotates terms by index. For example:
+Rotates the list of terms by index. For example, within a four-bit range:
 
     $width = 4;                  # values range 0 .. 15.
     $shift = 5;                  # term 0 becomes term 5, term 1 becomes term 6
-    @terms = (1, 3, 6, 8, 13, 14);
+    @terms = (1, 3, 7, 9, 13, 15);
     @terms = rotate_terms($width, \@terms, $shift);
 
-After this the values in C<@terms> will be (6, 8, 11, 13, 2, 3), with last
-two list items rotated around to the beginning, having been rotated past
-what C<$width> allows.
+The values in C<@terms> will become will be (6, 8, 12, 14, 2, 4),
+with the last two list items rotated around to the beginning, having
+been rotated past what C<$width> allows. A negative-valued shift rotates
+the terms backward.
 
 =cut
 
@@ -244,25 +375,25 @@ sub rotate_terms
 
 	$shift %= $length;
 
-	return @{ $tref } if ($shift == 0);
+	$shift += $length while ($shift < 0);
 
-	$shift += $length if ($shift < 0);
+	return @{ $tref } if ($shift == 0);
 
 	return map {($shift + $_) % $length} @{ $tref };
 }
 
 =head3 shift_terms()
 
-shift_terms() is a more list-type function, except that the
-shifting is index-based (i.e., the terms w.r.t. width).
+Shifts the list of terms by index. For example, within a four-bit range:
 
     $width = 4;                  # values range 0 .. 15.
     $shift = 5;                  # term 0 becomes term 5, term 1 becomes term 6
-    @terms = (1, 3, 6, 8, 13, 14);
+    @terms = (1, 3, 7, 9, 13, 15);
     @terms = shift_terms($width, \@terms, $shift);
 
-After this the values in C<@terms> will be (6, 8, 11, 13), with last
+The values in C<@terms> will become (6, 8, 12, 14), with the last
 two list items dropped, having been shifted past what C<$width> allows.
+A negative-valued shift shifts the terms downward.
 
 =cut
 
@@ -271,10 +402,11 @@ sub shift_terms
 	my($width, $tref, $shift) = @_;
 	my $length = 1 << $width;
 
-	return @{ $tref } if ($shift == 0);
-	return () if ($shift >= $length or $shift <= -$length);
-
-	if ($shift > 0)
+	if ($shift >= $length or $shift <= -$length)
+	{
+		return ();
+	}
+	elsif ($shift > 0)
 	{
 		return map {$shift + $_} grep {$_ < ($length - $shift)} @{ $tref };
 	}
@@ -286,7 +418,7 @@ sub shift_terms
 
 =head1 SEE ALSO
 
-L<Logic::TruthTable::Util>
+L<Logic::TruthTable::Base81>
 
 =head1 AUTHOR
 

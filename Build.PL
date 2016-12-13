@@ -24,6 +24,7 @@ my $builder = Module::Build->new(
 		perl => '5.10.1',
 		Moose => '2.16',
 		Carp => 0,
+		JSON => '2.61',
 		'Logic::Minimizer' => '1.00',
 		'List::MoreUtils' => '0.401',
 		'Module::Runtime' => '0.014',
@@ -35,7 +36,7 @@ my $builder = Module::Build->new(
 	},
 	build_requires => {
 		'Test::More' => 0,
-		'Test::Output' => 0,
+		'Test::Deep' => '1.12',
 	},
 
 	license => 'perl',

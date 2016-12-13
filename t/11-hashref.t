@@ -10,7 +10,7 @@ my $table = Logic::TruthTable->new(
 	width => 3,
 	title => 'Random Minterms',
 	vars => [qw(a2 a1 a0 )],
-	funcs => ['f0'],
+	functions => ['f0'],
 	columns => [
 		{
 			minterms => [2, 4, 5, 6],
