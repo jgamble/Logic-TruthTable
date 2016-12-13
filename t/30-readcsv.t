@@ -30,7 +30,7 @@ SKIP: {
 	#
 	skip "No object to test", 4 unless defined $ttable;
 
-	for my $f ( @{$ttable->funcs()} )
+	for my $f ( @{$ttable->functions()} )
 	{
 		my $col = $ttable->get_fncolumn($f);
 		ok(defined $col, "Column $f not found.");

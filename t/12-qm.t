@@ -22,7 +22,7 @@ SKIP: {
 
 	my $table = Logic::TruthTable->new(
 		width => 3,
-		funcs => ['f0'],
+		functions => ['f0'],
 		columns => [$q1 ],
 		title => 'Random Minterms',
 	);

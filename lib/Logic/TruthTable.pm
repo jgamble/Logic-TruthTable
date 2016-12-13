@@ -21,7 +21,7 @@ use Logic::Minimizer;
 #
 #use Parallel::ForkManager;
 #use MCE;
-#use Smart::Comments ('####'); 
+#use Smart::Comments ('###'); 
 
 #
 # Base class of the minimizer (used by
@@ -32,7 +32,7 @@ class_type 'ColumnMinimizer',
 
 #
 # Define the array of minimizer/hashref types
-# used to define our table's columns.
+# used to define our table's function columns.
 #
 subtype 'ArrayRefOfColumnMinimizers',
 	as 'ArrayRef[ColumnMinimizer]';
@@ -42,7 +42,7 @@ subtype 'ArrayRefOfHashRef',
 
 #
 # The width attribute is fed into the
-# minimizer object, it cannot be overridden
+# minimizer object; it cannot be overridden
 # by the minimizer's attributes.
 #
 has 'width' => (
@@ -77,7 +77,7 @@ has 'algorithm' => (
 #
 # The function names for each column.
 #
-has 'funcs' => (
+has 'functions' => (
 	isa => 'ArrayRef[Str]', is => 'rw', required => 0,
 	default => sub{['F0' .. 'F9', 'F10' .. 'F31'];},
 );
@@ -169,7 +169,7 @@ Create a truth table.
         width => 4,
         title => 'Rock Paper Scissors Winner Results',
         vars => ['a1', 'a0', 'b1', 'b0'],
-        funcs => ['w1', 'w0'],
+        functions => ['w1', 'w0'],
         columns => [
             {
                 minterms => [6, 9, 11, 14],
@@ -216,7 +216,7 @@ holder for eliminated variables in the equation. Some of those internals
 may be examined via other methods.
 
 This becomes the I<default> value of the function columns; it may be
-overridden in the C<columns> attribute.
+individually overridden in each C<columns> attribute.
 
 =item 'vars'
 
@@ -226,9 +226,9 @@ The variable names used to form the equation. The names will be taken from
 the leftmost first.
 
 This becomes the I<default> value of the function columns; it may be
-overridden in the C<columns> attribute.
+individually overridden in each C<columns> attribute.
 
-=item 'funcs'
+=item 'functions'
 
 I<Default value: ['F0' .. 'F9', 'F10' .. 'F31']>
 
@@ -247,14 +247,57 @@ parent class. This ensures that it will have the methods needed by
 Logic::TruthTable to create and solve the Boolean expressions.
 
 This becomes the I<default> value of the function columns; it may be
-overridden in the C<columns> attribute.
+individually overridden in each C<columns> attribute.
 
 =item 'columns'
 
-Contains hash references that create the algorithm minimizer objects.
+An array of hash references that create the algorithm minimizer objects.
 
 Each column becomes an object itself, and must have the attributes necessary
 to create the object.
+
+Alternatively, it is possible to pre-create the algorithm minimizer objects,
+and use them directly in the C<columns> array:
+
+    $q3 = Algorithm::QuineMcCluskey->new(
+        title	=> "First column of a four bit binary to 2-4-2-1 converter",
+        width => 4,
+        minterms => [ 5 .. 9 ],
+        dontcares => [ 10 .. 15 ],
+        vars => ['w' .. 'z'],
+    );
+    $q2 = Algorithm::QuineMcCluskey->new(
+        title	=> "Second column of a four bit binary to 2-4-2-1 converter",
+        width => 4,
+        minterms => [ 4, 6 .. 9 ],
+        dontcares => [ 10 .. 15 ],
+        vars => ['w' .. 'z'],
+    );
+    $q1 = Algorithm::QuineMcCluskey->new(
+        title	=> "Third column of a four bit binary to 2-4-2-1 converter",
+        width => 4,
+        minterms => [ 2, 3, 5, 8, 9 ],
+        dontcares => [ 10 .. 15 ],
+        vars => ['w' .. 'z'],
+    )
+    $q0 = Algorithm::QuineMcCluskey->new(
+        title	=> "First column of a four bit binary to 2-4-2-1 converter",
+        width => 4,
+        minterms => [ 1, 3, 5, 7, 9 ],
+        dontcares => [ 10 .. 15 ],
+        vars => ['w' .. 'z'],
+    )
+
+    #
+    # Create the truth table using the above Algorithm::QuineMcCluskey objects.
+    #
+    $tt_2421 = Logic::TruthTable->new(
+        width => 4,
+        title	=> "A four bit binary to 2-4-2-1 converter",
+        vars => ['w' .. 'z'],
+        functions => [qw(a3 a2 a1 a0)],
+        columns => [$q3, $q2, $q1, $q0],
+    );
 
 =back
 
@@ -265,7 +308,7 @@ sub BUILD
 	my $self = shift;
 	my $w = $self->width;
 	my @cols = @{$self->_get_columns};
-	my @fn_names = @{$self->funcs};
+	my @fn_names = @{$self->functions};
 	my @vars = @{$self->vars};
 	my $dc = $self->dc;
 
@@ -276,7 +319,7 @@ sub BUILD
 	croak "Not enough function names for your columns" if ($#fn_names < $#cols);
 
 	$#fn_names = $#cols;
-	$self->funcs(\@fn_names);
+	$self->functions(\@fn_names);
 	$self->_fn_width($#cols);
 
 	$#vars = $w - 1;
@@ -347,13 +390,13 @@ algorithm, and which may be set using the C<algorithm> parameter
 in C<new()>. (As of this writing, the only algorithm availble
 in the CPAN ecosystem is C<Algorithm::QuineMcCluseky>.)
 
-Each column is named via the C<funcs> attribute in C<new()>, and
+Each column is named via the C<functions> attribute in C<new()>, and
 a column can be retrieved using its name.
 
     my $ttable = Logic::TruthTable->new(
         title => "An Example",
 	width => 5,
-	funcs => ['F1', 'F0'],
+	functions => ['F1', 'F0'],
         algorithm => 'QuineMcCluskey',  # Our only choice currently.
         columns => [
             {
@@ -370,7 +413,10 @@ a column can be retrieved using its name.
     my $col_f0 = $ttable->get_fncolumn('F0');
 
 C<$col_f0> will be an Algorithm::QuineMcCluskey object with minterms
-(7, 11, 19, 23, 29, 30).
+(7, 11, 19, 23, 29, 30). As columns are numbered in array order, the
+same column could have been retrieved with:
+
+    my $col_f0 = $ttable->get_fncolumn(1);
 
 
 =cut
@@ -425,7 +471,7 @@ sub solve
 sub fnsolve
 {
 	my $self = shift;
-	my(@f) = @{ $self->funcs() };
+	my(@f) = @{ $self->functions() };
 	my(@eqns) = $self->solve();
 
 	return pairwise {qq($a = $b)} @f, @eqns;
@@ -453,8 +499,25 @@ don't-care character:
         close $fh;
     }
 
+The options are:
+
+=over 2
+
+=item write_handle
+
+The opened file handle for writing.
+
+=item dc
+
+The don't-care symbol to use in the file.
+
+=back
+
 The method returns undef if an error is encountered. On
-success it returns the object.
+success it returns itself.
+
+Note that this method cannot read Logic Friday's minimized export
+format, only the full, not-minimized files.
 
 =cut
 
@@ -463,19 +526,21 @@ sub export_csv()
 	my $self = shift;
 	my(%opts) = @_;
 
-	my $w = $self->width;
 	my $handle = $opts{write_handle};
-	my $dc = $opts{dc} // $self->dc;
-	my $fmt = "%0${w}b";
-	my $lastrow = (1 << $w) - 1;
-	my $lastcol = $#{$self->_get_columns};
-	my @columns;
+
+	### handle: $handle
 
 	unless (defined $handle)
 	{
 		carp "export_csv(): no file opened for export.";
 		return undef;
 	}
+
+	my $w = $self->width;
+	my $dc = $opts{dc} // $self->dc;
+	my $fmt = "%0${w}b";
+	my $lastrow = (1 << $w) - 1;
+	my @columns;
 
 	#
 	# Set up the array of column strings.
@@ -485,7 +550,7 @@ sub export_csv()
 	#
 	### dc: $dc
 	#
-	for my $c_idx (0 .. $lastcol)
+	for my $c_idx (0 .. $self->_fn_width)
 	{
 		my $obj = ${$self->_get_columns}[$c_idx];
 		my @c = @{$obj->to_columnlist};
@@ -512,13 +577,13 @@ sub export_csv()
 		return undef;
 	}
 
-	$csv->print($handle, [@{$self->vars}, '', @{$self->funcs}]);
+	$csv->print($handle, [@{$self->vars}, '', @{$self->functions}]);
 
 	for my $r_idx (0 .. $lastrow)
 	{
 		my @row = (split(//, sprintf($fmt, $r_idx)), '');
 
-		push @row, shift @{ $columns[$_] } for (0 .. $lastcol);
+		push @row, shift @{ $columns[$_] } for (0 .. $self->_fn_width);
 
 		$csv->print($handle, [@row]);
 	}
@@ -545,7 +610,8 @@ object from it.
 
 The don't-care character doesn't have to be set in this case, as import_csv()
 will assume anything not a 0 or 1 is the don't-care character. Of course you
-may set it anyway for other reasons.
+may set it anyway if you want to change it from the default don't-care character
+in the truth table object.
 
 You can set whether the truth table object is created using the
 minterms or the maxterms of the CSV file by using the C<termtype>
@@ -585,7 +651,7 @@ sub import_csv
 	my $termtype = $opts{termtype} // 'minterms';
 
 	my @vars;
-	my @funcs;
+	my @functions;
 	my $width = 0;
 
 	unless (defined $handle)
@@ -638,7 +704,7 @@ sub import_csv
 		}
 		else
 		{
-			push @funcs, $_;
+			push @functions, $_;
 		}
 	}
 
@@ -648,7 +714,7 @@ sub import_csv
 	#
 	### width: $width
 	### termtype: $termtype
-	### funcs: @funcs
+	### functions: @functions
 	### vars: @vars
 	#
 	my($termrefs, $dcrefs);
@@ -656,7 +722,7 @@ sub import_csv
 	my $idx = 0;
 	while (my $row = $csv->getline($handle))
 	{
-		for my $c (0 .. $#funcs)
+		for my $c (0 .. $#functions)
 		{
 			my $field = 1 + $c + $width;
 
@@ -680,12 +746,12 @@ sub import_csv
 	### dcrefs: $dcrefs
 	### termrefs: $termrefs
 	#
-	my $title = $opts{title} // "Created from file";
+	my $title = $opts{title} // "$width-input table created from import file";
 	my $algorithm = $opts{algorithm} // 'QuineMcCluskey';
 	my $dc = $opts{dc} // '-';
 	my @columns;
 
-	for my $c (0 .. $#funcs)
+	for my $c (0 .. $#functions)
 	{
 		push @columns, {
 			dontcares => $dcrefs->[$c],
@@ -698,7 +764,7 @@ sub import_csv
 		title => $title,
 		dc => $dc,
 		vars => [@vars],
-		funcs => [@funcs],
+		functions => [@functions],
 		columns => [@columns],
 		algorithm => $algorithm,
 	);

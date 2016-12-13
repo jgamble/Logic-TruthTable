@@ -75,7 +75,7 @@ my $table = Logic::TruthTable->new(
 	title => "Rock (001) Paper (010) Scissors (011) Vulcan (100) Lizard (101) 'Winner' table.",
 	width => 2 * $width,
 	vars => [qw(a2 a1 a0 b2 b1 b0)],
-	funcs => [qw(w2 w1 w0)],
+	functions => [qw(w2 w1 w0)],
 	columns => [
 		{
 			minterms => [@w2],
