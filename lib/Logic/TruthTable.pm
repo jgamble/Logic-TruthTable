@@ -137,10 +137,11 @@ Create a truth table.
 
  
     #
-    # Rock-Paper-Scissors winners table.
+    # Create a "Rock-Paper-Scissors winners" truth table, using
+    # the following values:
     #
-    # Returns (in two bits) the winner of Rock (01) vs. Paper (10)
-    # or vs. Scissors (11). A tie is 00.
+    # Columns represent (in two bits) the winner of Rock (01)
+    # vs. Paper (10), or vs. Scissors (11). A tie is 00.
     #
     # 
     #        a1 a0 b1 b0 ||  w1 w0
@@ -181,6 +182,19 @@ Create a truth table.
             },
         ],
     );
+
+    #
+    # Print the result
+    #
+    print $ttbl->fnsolve();
+
+    #
+    # Save the truth table values as a CSV file.
+    #
+    open my $fh, ">", "rpswinners.csv" or croak "Error opening CSV file.";
+    $ttbl->export(write_handle => \$fh);
+    close $fh;
+
 
 =head1 Description
 
@@ -236,7 +250,11 @@ The function names used to form the equation.
 
 =item 'algorithm'
 
-The default algorithm that will be used to minimize the Boolean equations.
+The default algorithm that will be used to minimize each column.
+
+Currently, as there is only one minimizer algorithm (L<Algorith-QuineMcCluskey>)
+available on CPAN, it is the default.
+
 The name will come from the package name, e.g., having an attribute
 C<algorithm => 'QuineMcCluskey'> means that the column will be minimized
 using the package Algorithm::QuineMcCluskey.
@@ -256,44 +274,76 @@ An array of hash references that create the algorithm minimizer objects.
 Each column becomes an object itself, and must have the attributes necessary
 to create the object.
 
-Alternatively, it is possible to pre-create the algorithm minimizer objects,
-and use them directly in the C<columns> array:
+    #
+    # Create a truth table for converting zero to nine (binary)
+    # to a 2-4-2-1 code.
+    #
+    my $tt_2421 = Logic::TruthTable->new(
+        width => 4,
+        algorithm => 'QuineMcCluskey',
+        title	=> "A four-bit binary to 2-4-2-1 converter",
+        vars => ['w' .. 'z'],
+        functions => [qw(a3 a2 a1 a0)],
+        columns => [
+            {
+                minterms => [ 5 .. 9 ],
+                dontcares => [ 10 .. 15 ],
+            },
+            {
+                minterms => [ 4, 6 .. 9 ],
+                dontcares => [ 10 .. 15 ],
+            },
+            {
+                minterms => [ 2, 3, 5, 8, 9 ],
+                dontcares => [ 10 .. 15 ],
+            },
+            {
+                minterms => [ 1, 3, 5, 7, 9 ],
+                dontcares => [ 10 .. 15 ],
+            },
+        ],
+    );
 
-    $q3 = Algorithm::QuineMcCluskey->new(
-        title	=> "First column of a four bit binary to 2-4-2-1 converter",
+Alternatively, it is possible to pre-create the algorithm minimizer objects,
+and use them directly in the C<columns> array, although it does result in
+a lot of duplicated code:
+
+    my $q3 = Algorithm::QuineMcCluskey->new(
+        title	=> "Column 3 of a four bit binary to 2-4-2-1 converter",
         width => 4,
         minterms => [ 5 .. 9 ],
         dontcares => [ 10 .. 15 ],
         vars => ['w' .. 'z'],
     );
-    $q2 = Algorithm::QuineMcCluskey->new(
-        title	=> "Second column of a four bit binary to 2-4-2-1 converter",
+    my $q2 = Algorithm::QuineMcCluskey->new(
+        title	=> "Column 2 of a four bit binary to 2-4-2-1 converter",
         width => 4,
         minterms => [ 4, 6 .. 9 ],
         dontcares => [ 10 .. 15 ],
         vars => ['w' .. 'z'],
     );
-    $q1 = Algorithm::QuineMcCluskey->new(
-        title	=> "Third column of a four bit binary to 2-4-2-1 converter",
+    my $q1 = Algorithm::QuineMcCluskey->new(
+        title	=> "Column 1 of a four bit binary to 2-4-2-1 converter",
         width => 4,
         minterms => [ 2, 3, 5, 8, 9 ],
         dontcares => [ 10 .. 15 ],
         vars => ['w' .. 'z'],
-    )
-    $q0 = Algorithm::QuineMcCluskey->new(
-        title	=> "First column of a four bit binary to 2-4-2-1 converter",
+    );
+    my $q0 = Algorithm::QuineMcCluskey->new(
+        title	=> "Column 0 of a four bit binary to 2-4-2-1 converter",
         width => 4,
         minterms => [ 1, 3, 5, 7, 9 ],
         dontcares => [ 10 .. 15 ],
         vars => ['w' .. 'z'],
-    )
+    );
 
     #
-    # Create the truth table using the above Algorithm::QuineMcCluskey objects.
+    # Create the truth table using the above
+    # Algorithm::QuineMcCluskey objects.
     #
-    $tt_2421 = Logic::TruthTable->new(
+    my $tt_2421 = Logic::TruthTable->new(
         width => 4,
-        title	=> "A four bit binary to 2-4-2-1 converter",
+        title	=> "A four-bit binary to 2-4-2-1 converter",
         vars => ['w' .. 'z'],
         functions => [qw(a3 a2 a1 a0)],
         columns => [$q3, $q2, $q1, $q0],
@@ -516,7 +566,7 @@ The don't-care symbol to use in the file.
 The method returns undef if an error is encountered. On
 success it returns itself.
 
-Note that this method cannot read Logic Friday's minimized export
+Note that this method cannot write Logic Friday's minimized export
 format, only the full, not-minimized files.
 
 =cut
