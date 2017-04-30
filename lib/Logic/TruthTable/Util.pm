@@ -145,7 +145,7 @@ attributes are all array references, these can be created programatically:
     #
     # We may not have the faster algorthm installed, and the
     # truth table may be very large, so save the table as a
-    # file for Logic Friday.
+    # file for Logic Friday, and exit.
     #
     $tt->export_csv(dc => 'X', write_handle => \*STDOUT);
     exit(0);
@@ -172,7 +172,7 @@ attributes are all array references, these can be created programatically:
     # Rock Paper Scissors Spock Lizard are Paper and Lizard, the
     # output columns would indicate Lizard (eats Paper).
     #
-    # Throws are numbers from 1 (Rock) onward, with Tie being 0.
+    # Throws are numbered from 1 (Rock) onward, with Tie being 0.
     #
     # Returns the Logic::TruthTable object.
     #
