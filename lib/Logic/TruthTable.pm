@@ -12,20 +12,27 @@ use Carp;
 use List::MoreUtils qw(pairwise);
 use Module::Runtime qw(is_module_name use_module);
 use Text::CSV;
+use JSON;
 
 use Logic::Minimizer;
+use Logic::TruthTable::Base81 qw(:all);
+
 
 #
+#use Devel::Timer;
 # TBD: Parallelize the column-solving. Some
 # recommended modules below, choose later.
 #
 #use Parallel::ForkManager;
+# or
+#use Parallel::Loops;
+# or
 #use MCE;
 #use Smart::Comments ('###'); 
+#
 
 #
-# Base class of the minimizer (used by
-# Algorithm::QuineMcCluskey).
+# Base class of the Algorithm::<minimizer> modules.
 #
 class_type 'ColumnMinimizer',
 	{class => 'Logic::Minimizer'};
@@ -50,7 +57,7 @@ has 'width' => (
 );
 
 #
-# The don't-care character and the vars attributes on the
+# The don't-care character, vars, and functions attributes on the
 # other hand, are merely defaults and *can* be overridden
 # by the object.
 #
@@ -64,22 +71,20 @@ has 'vars' => (
 	default => sub{['A' .. 'Z'];},
 );
 
+has 'functions' => (
+	isa => 'ArrayRef[Str]', is => 'rw', required => 0,
+	default => sub{['F0' .. 'F9', 'F10' .. 'F31'];},
+);
+
 #
 # Used to determine which minimizer object type will be
 # created by default for the columns. As of this release,
-# only Algorithm::QuineMcCluskey is available.
+# only Algorithm::QuineMcCluskey is available, so that is
+# the default.
 #
 has 'algorithm' => (
 	isa => 'Str', is => 'ro', required => 0,
 	default => 'QuineMcCluskey',
-);
-
-#
-# The function names for each column.
-#
-has 'functions' => (
-	isa => 'ArrayRef[Str]', is => 'rw', required => 0,
-	default => sub{['F0' .. 'F9', 'F10' .. 'F31'];},
 );
 
 #
@@ -168,15 +173,18 @@ Create a truth table.
 
     my $ttbl = Logic::TruthTable->new(
         width => 4,
+        algorithm => 'QuineMcCluskey',
         title => 'Rock Paper Scissors Winner Results',
         vars => ['a1', 'a0', 'b1', 'b0'],
         functions => ['w1', 'w0'],
         columns => [
             {
+                title => 'Bit 1 of the result.',
                 minterms => [6, 9, 11, 14],
                 dontcares => [0 .. 4, 8, 12],
             },
             {
+                title => 'Bit 0 of the result.',
                 minterms => [7, 11, 13, 14],
                 dontcares => [0 .. 4, 8, 12],
             },
@@ -191,9 +199,16 @@ Create a truth table.
     #
     # Save the truth table values as a CSV file.
     #
-    open my $fh, ">", "rpswinners.csv" or croak "Error opening CSV file.";
-    $ttbl->export(write_handle => \$fh);
-    close $fh;
+    open my $fh_csv, ">", "rpswinners.csv" or croak "Error opening CSV file.";
+    $ttbl->export_csv(write_handle => \$fh_csv);
+    close $fh_csv;
+
+    #
+    # Or save the truth table values as a JSON file.
+    #
+    open my $fh_json, ">", "rpswinners.json" or croak "Error opening JSON file.";
+    $ttbl->export_json(write_handle => \$fh_json);
+    close $fh_json;
 
 
 =head1 Description
@@ -201,6 +216,10 @@ Create a truth table.
 This module minimizes tables of 
 L<Boolean expressions|https://en.wikipedia.org/wiki/Boolean_algebra> using the
 algorithms available on CPAN.
+
+It lets you contain related sets of problems (represented by their columns) in
+a single object, along with the variable names, function names, and title.
+Methods exist to import from and export to CSV and JSON files.
 
 =head2 Object Methods
 
@@ -225,9 +244,9 @@ A title for the problem you are solving.
 I<Default value: '-'>
 
 Change the representation of the don't-care character. The don't-care
-character is used both in the columnstring, and internally as a place
-holder for eliminated variables in the equation. Some of those internals
-may be examined via other methods.
+character is used both in the columnstring, as character in exported
+CSV files, and internally as a place holder for eliminated variables
+in the equation. Some of those internals may be examined via other methods.
 
 This becomes the I<default> value of the function columns; it may be
 individually overridden in each C<columns> attribute.
@@ -239,40 +258,178 @@ I<Default value: ['A' .. 'Z']>
 The variable names used to form the equation. The names will be taken from
 the leftmost first.
 
-This becomes the I<default> value of the function columns; it may be
-individually overridden in each C<columns> attribute.
+This becomes the I<default> value of the C<vars> attribute of the function
+columns; it may be individually overridden in each C<columns> attribute.
 
 =item 'functions'
 
 I<Default value: ['F0' .. 'F9', 'F10' .. 'F31']>
 
-The function names used to form the equation.
+The function names of each equation.
+
+The function name becomes the default title of the individual column
+if the column doesn't set a title.
 
 =item 'algorithm'
 
 The default algorithm that will be used to minimize each column.
 
-Currently, as there is only one minimizer algorithm (L<Algorith-QuineMcCluskey>)
-available on CPAN, it is the default.
+Currently, there is only one minimizer algorithm (L</Algorith::QuineMcCluskey>)
+available on CPAN, and it is the default.
 
 The name will come from the package name, e.g., having an attribute
-C<algorithm => 'QuineMcCluskey'> means that the column will be minimized
+C<algorithm =E<gt> 'QuineMcCluskey'> means that the column will be minimized
 using the package Algorithm::QuineMcCluskey.
 
-The algorithm module must be installed, and must be of the form
+The algorithm module must be installed and be of the form
 C<Algorithm::Name>. The module must also have Logic::Minimizer as its
 parent class. This ensures that it will have the methods needed by
 Logic::TruthTable to create and solve the Boolean expressions.
 
 This becomes the I<default> value of the function columns; it may be
-individually overridden in each C<columns> attribute.
+individually overridden in each C<columns>'s attribute.
 
 =item 'columns'
 
-An array of hash references that create the algorithm minimizer objects.
+An array of hash references. Each hash reference contains the key/value
+pairs used to define the Boolean expression. These are used to create
+a minimizer object, which in turn solves the expression.
 
-Each column becomes an object itself, and must have the attributes necessary
-to create the object.
+=over 4
+
+=item 'minterms'
+
+An array reference of terms representing the 1-values of the
+Boolean expression.
+
+=item 'maxterms'
+
+An array reference of terms representing the 0-values of the
+Boolean expression. This will also indicate that you want the
+expression in product-of-sum form, instead of the default
+sum-of-product form.
+
+=item 'dontcares'
+
+An array reference of terms representing the don't-care-values of the
+Boolean expression. These represent inputs that simply shouldn't happen
+(e.g., numbers 11 through 15 in a base 10 system), and therefore don't
+matter to the result.
+
+=item 'columnstring'
+
+Present the entire list of values of the boolean expression as a single
+string. The values are ordered from left to right in the string. For example,
+a simple two-variable AND equation would have a string "0001".
+
+=back
+
+You can use only one of C<minterms>, C<maxterms>, or C<columnstring>.
+
+=over 4
+
+=item 'dc'
+
+Change the representation of the don't-care character. The don't-care character
+is used both in the columnstring, and internally as a place holder for
+eliminated variables in the equation. Defaults to the character
+defined in the C<Logic::TruthTable> object.
+
+=item 'title'
+
+A title for the expression you are solving. Defaults to the function
+name defined in the C<Logic::TruthTable> object.
+
+=item 'vars'
+
+I<Default value: ['A' .. 'Z']>
+
+The variable names used to form the equation. Defaults to the variable
+names defined in the C<Logic::TruthTable> object.
+
+    #
+    # Create a truth table for converting zero to nine (binary)
+    # to a 2-4-2-1 code.
+    #
+    my $tt_2421 = Logic::TruthTable->new(
+        width => 4,
+        algorithm => 'QuineMcCluskey',
+        title => "A four-bit binary to 2-4-2-1 converter",
+        vars => ['w' .. 'z'],
+        functions => [qw(a3 a2 a1 a0)],
+        columns => [
+            {
+                title => "Column a3",
+                minterms => [ 5 .. 9 ],
+                dontcares => [ 10 .. 15 ],
+            },
+            {
+                title => "Column a2",
+                minterms => [ 4, 6 .. 9 ],
+                dontcares => [ 10 .. 15 ],
+            },
+            {
+                title => "Column a1",
+                minterms => [ 2, 3, 5, 8, 9 ],
+                dontcares => [ 10 .. 15 ],
+            },
+            {
+                title => "Column a0",
+                minterms => [ 1, 3, 5, 7, 9 ],
+                dontcares => [ 10 .. 15 ],
+            },
+        ],
+    );
+
+=back
+
+The minterms or maxterms do not have to be created by hand; there are
+functions in L</Logic::TruthTable::Util> to help create the terms.
+
+Alternatively, it is possible to pre-create the algorithm minimizer objects,
+and use them directly in the C<columns> array, although it does result in
+a lot of duplicated code:
+
+    my $q3 = Algorithm::QuineMcCluskey->new(
+        title => "Column 3 of a four bit binary to 2-4-2-1 converter",
+        width => 4,
+        minterms => [ 5 .. 9 ],
+        dontcares => [ 10 .. 15 ],
+        vars => ['w' .. 'z'],
+    );
+    my $q2 = Algorithm::QuineMcCluskey->new(
+        title => "Column 2 of a four bit binary to 2-4-2-1 converter",
+        width => 4,
+        minterms => [ 4, 6 .. 9 ],
+        dontcares => [ 10 .. 15 ],
+        vars => ['w' .. 'z'],
+    );
+    my $q1 = Algorithm::QuineMcCluskey->new(
+        title => "Column 1 of a four bit binary to 2-4-2-1 converter",
+        width => 4,
+        minterms => [ 2, 3, 5, 8, 9 ],
+        dontcares => [ 10 .. 15 ],
+        vars => ['w' .. 'z'],
+    );
+    my $q0 = Algorithm::QuineMcCluskey->new(
+        title => "Column 0 of a four bit binary to 2-4-2-1 converter",
+        width => 4,
+        minterms => [ 1, 3, 5, 7, 9 ],
+        dontcares => [ 10 .. 15 ],
+        vars => ['w' .. 'z'],
+    );
+
+    #
+    # Create the truth table using the above
+    # Algorithm::QuineMcCluskey objects.
+    #
+    my $tt_2421 = Logic::TruthTable->new(
+        width => 4,
+        title => "A four-bit binary to 2-4-2-1 converter",
+        vars => ['w' .. 'z'],
+        functions => [qw(a3 a2 a1 a0)],
+        columns => [$q3, $q2, $q1, $q0],
+    );
 
     #
     # Create a truth table for converting zero to nine (binary)
@@ -390,13 +547,13 @@ sub BUILD
 	{
 		my %tcol = %{ $cols[$idx] };
 		$tcol{width} //= $w;
+
+		croak "Column $idx: width => " . $tcol{width} .
+			" doesn't match table's width $w" if ($tcol{width} != $w);
 		$tcol{dc} //= $dc;
 		$tcol{algorithm} //= $self->algorithm;
 		$tcol{vars} //= [@vars];
 		$tcol{title} //= $fn_names[$idx];
-
-		croak "Column $idx: width => " . $tcol{width} .
-			" doesn't match table's width $w" if ($tcol{width} != $w);
 
 		${$self->_get_columns}[$idx] = new_minimizer_obj(\%tcol);
 	}
@@ -407,8 +564,8 @@ sub BUILD
 #
 # new_minimizer_obj(%algorithm_options)
 #
-# Creates a column's object (like an Algorithm::QuineMcCluskey object,
-# for example) from the options provided.
+# Creates a column's object (e.g. an Algorithm::QuineMcCluskey object)
+# from the options provided.
 #
 sub new_minimizer_obj
 {
@@ -430,66 +587,19 @@ sub new_minimizer_obj
 	return $obj;
 }
 
-=head3 get_fncolumn()
-
-Return a column object by name or index.
-
-The columns of a C<Logic::TruthTable> object are themselves
-objects, of types C<Algorithm::Name>, where I<Name> is the
-algorithm, and which may be set using the C<algorithm> parameter
-in C<new()>. (As of this writing, the only algorithm availble
-in the CPAN ecosystem is C<Algorithm::QuineMcCluseky>.)
-
-Each column is named via the C<functions> attribute in C<new()>, and
-a column can be retrieved using its name.
-
-    my $ttable = Logic::TruthTable->new(
-        title => "An Example",
-	width => 5,
-	functions => ['F1', 'F0'],
-        algorithm => 'QuineMcCluskey',  # Our only choice currently.
-        columns => [
-            {
-                minterms => [6, 9, 23, 27],
-                dontcares => [0, 2, 4, 16, 24],
-            },
-            {
-                minterms => [7, 11, 19, 23, 29, 30],
-                dontcares => [0, 2, 4, 16, 24],
-            },
-        ],
-    );
-
-    my $col_f0 = $ttable->get_fncolumn('F0');
-
-C<$col_f0> will be an Algorithm::QuineMcCluskey object with minterms
-(7, 11, 19, 23, 29, 30). As columns are numbered in array order, the
-same column could have been retrieved with:
-
-    my $col_f0 = $ttable->get_fncolumn(1);
-
-
-=cut
-
-sub get_fncolumn
-{
-	my $self = shift;
-	my($fn_name) = @_;
-	my $idx;
-
-	#
-	#### Let's look at the key: $fn_name
-	#### Let's look at the hash: %{$self->_fn_lookup()}
-	#### Let's look an an element: $self->_fn_lookup()->{$fn_name}
-	#
-
-	$idx = ($self->_fn_lookup()->{$fn_name}) // $fn_name;
-
-	return undef unless ($idx =~ m/^\d+$/ and $idx <= $self->_fn_width);
-	return $self->_get_columns()->[$idx];
-}
-
 =head3 solve()
+
+Run the columns of the truth table through their solving methods. Each column's
+solution is returned as a list.
+
+A way to view the solutions would be:
+
+    my @equations = $tt->solve();
+
+    for my $j (0 .. $#equations)
+    {
+        sprintf("%2d: %s", $j, $equation[$j]), "\n";
+    }
 
 =cut
 
@@ -516,6 +626,18 @@ sub solve
 
 =head3 fnsolve()
 
+Run the columns of the truth table through their solving methods, returning
+the solution as a hash table of the form 'function_name' => "column_solution".
+
+A way to view the solutions would be:
+
+    my %resultset = $tt->fnsolve();
+
+    for my $k (sort keys %resultset)
+    {
+        print $k, " = ", $resultset{$k}, "\n";
+    }
+
 =cut
 
 sub fnsolve
@@ -527,27 +649,153 @@ sub fnsolve
 	return pairwise {qq($a = $b)} @f, @eqns;
 }
 
+
+=head3 all_fnsolutions()
+
+There may be more than one solution that covers the terms of a column.
+This method runs the columns of the truth table through their solving
+methods, and returns all of the solutions of each column. The array of
+solutions become the value in a hash table of the form
+'function_name' => [@column_solutions].
+
+A way to view the solutions would be:
+
+    my %resultset = $tt->all_fnsolutions();
+
+    for my $k (sort keys %resultset)
+    {
+        my @solns = @{$resultset{$k}};
+
+        print $k, " = ", join(", or\n      ", @solns), "\n";
+    }
+
+=cut
+
+sub all_fnsolutions
+{
+	my $self = shift;
+	my(@f) = @{ $self->functions() };
+	my @solns;
+
+	for my $col (@{$self->_get_columns})
+	{
+		#
+		##### Solving: $col
+		#
+		push @solns, "[" . join("\n ", $col->all_solutions()) . "\n]";
+	}
+
+	return pairwise {qq($a = $b)} @f, @solns;
+}
+
+=head3 get_fncolumn()
+
+Return a column object by name or index.
+
+The columns of a C<Logic::TruthTable> object are themselves
+objects, of types C<Algorithm::Name>, where I<Name> is the
+algorithm, and which may be set using the C<algorithm> parameter
+in C<new()>. (As of this writing, the only algorithm availble
+in the CPAN ecosystem is C<Algorithm::QuineMcCluseky>.)
+
+Each column is named via the C<functions> attribute in C<new()>, and
+a column can be retrieved using its name.
+
+    my $ttable = Logic::TruthTable->new(
+        title => "An Example",
+        width => 5,
+        functions => ['F1', 'F0'],
+        algorithm => 'QuineMcCluskey',  # Our only choice currently.
+        columns => [
+            {
+                minterms => [6, 9, 23, 27],
+                dontcares => [0, 2, 4, 16, 24],
+            },
+            {
+                minterms => [7, 11, 19, 23, 29, 30],
+                dontcares => [0, 2, 4, 16, 24],
+            },
+        ],
+    );
+
+    my $col_f0 = $ttable->get_fncolumn('F0');
+
+C<$col_f0> will be an Algorithm::QuineMcCluskey object with minterms
+(7, 11, 19, 23, 29, 30). As columns are indexed in array order, the
+same column could have been retrieved with:
+
+    my $col_f0 = $ttable->get_fncolumn(1);
+
+=cut
+
+sub get_fncolumn
+{
+	my $self = shift;
+	my($fn_name) = @_;
+	my $idx;
+
+	#
+	#### Let's look at the key: $fn_name
+	#### Let's look at the hash: %{$self->_fn_lookup()}
+	#### Let's look an an element: $self->_fn_lookup()->{$fn_name}
+	#
+
+	$idx = ($self->_fn_lookup()->{$fn_name}) // $fn_name;
+
+	return undef unless ($idx =~ m/^\d+$/ and $idx <= $self->_fn_width);
+	return $self->_get_columns()->[$idx];
+}
+
 =head3 export_csv()
 
-Write the truth table out to a CSV file, suitable for reading by
-other programs, such as a spreadsheet application, or by
-L<Logic Friday|http://sontrak.com/>, a tool for working with logic
-functions.
+=head3 export_json()
+
+Write the truth table out as either a CSV file or a JSON file.
+
+In either case, the calling code opens the file and provides the file
+handle:
+
+    open my $fh_nq, ">:encoding(utf8)", "nq_6.json"
+        or die "Can't open export file";
+
+    $tt->export_json(write_handle => $fh_nq);
+
+    close $fh_nq or die "Error closing file.";
+
+Making your code handle the opening and closing of the file may
+seem like an unnecessary inconvenience, but one benefit is that it
+allows you to make use of STDOUT:
+
+    $tt->export_csv(write_handle => \*STDOUT, dc => 'X');
+
+A CSV file can store the varible names, function names, minterms,
+maxterms, and don't-care terms. The don't-care character (C<dc>,
+used to signal a don't-care term), can be changed from what the
+truth table has stored. Whether the truth table uses minterms or
+maxterms will have to be set when importing the file (see L</import_csv()>.
+
+CSV is a suitable format for reading by other programs, such as spreadsheets,
+or the program L<Logic Friday|http://sontrak.com/>, a tool for working with
+logic functions.
 
 In the example below, a file is being written out for reading
 by Logic Friday. Note that Logic Friday insists on its own
-don't-care character:
+don't-care character, which we can set with the 'dc' option:
 
-    if (open my $fh, ">:encoding(utf8)", "ttmwc.csv")
+    if (open my $fh_mwc, ">", "ttmwc.csv")
     {
         #
         # Override the don't-care character, as Logic Friday
         # insists on it being an 'X'.
         #
-        $truthtable->export_csv(write_handle => $fh, dc => 'X');
+        $truthtable->export_csv(write_handle => $fh_mwc, dc => 'X');
 
-        close $fh;
+        close $fh_mwc;
     }
+
+The JSON file will store all of the attributes that were in the
+truth table, except for the algorithm, which will have to be
+set when importing the file.
 
 The options are:
 
@@ -559,15 +807,18 @@ The opened file handle for writing.
 
 =item dc
 
-The don't-care symbol to use in the file.
+The don't-care symbol to use in the file. In the case of the CSV file,
+becomes the character to write out. In the case of the JSON file, will
+become the truth table's default character, but may not be an individual
+column's character if it had already been set differently in its column.
 
 =back
 
 The method returns undef if an error is encountered. On
-success it returns itself.
+success it returns the truth table object.
 
-Note that this method cannot write Logic Friday's minimized export
-format, only the full, not-minimized files.
+Note that the CSV export cannot write Logic Friday's minimized export
+format, but only the full-sized, not-minimized, files.
 
 =cut
 
@@ -607,10 +858,7 @@ sub export_csv()
 
 		if ($dc ne $obj->dc)
 		{
-			my $obj_dc = $obj->dc;
-			### obj_dc: $obj_dc
-			### to dc: $dc
-			$_ =~ s/\Q$obj_dc\E/$dc/ for (@c);
+			$_ =~ s/[^01]/$dc/ for (@c);
 		}
 
 		push @columns, [@c];
@@ -641,54 +889,159 @@ sub export_csv()
 	return $self;
 }
 
+sub export_json
+{
+	my $self = shift;
+	my(%opts) = @_;
+
+	my $handle = $opts{write_handle};
+	my %jhash;
+	my @columns;
+
+	$jhash{title} = $self->title;
+	$jhash{vars} = $self->vars;
+	$jhash{functions} = $self->functions;
+	$jhash{width} = $self->width;
+	$jhash{dc} = $opts{dc} // $self->dc;
+	for my $f (@{ $self->functions })
+	{
+		my %colhash;
+		my $col = $self->get_fncolumn($f);
+		my $isminterms = $col->has_minterms;
+		my $terms = $isminterms? $col->minterms: $col->maxterms;
+
+		$colhash{dc} = $col->dc if ($col->dc ne $self->dc and $col->dc ne $jhash{dc});
+
+		$colhash{title} = $col->title;
+		$colhash{base81} =
+			terms_to_base81($self->width, $isminterms,
+				$terms, $col->dontcares);
+		push @columns, {%colhash};
+	}
+	$jhash{columns} = \@columns;
+	my $jstr = encode_json(\%jhash);
+	print $handle $jstr;
+	return $self;
+}
+
 =head3 import_csv()
 
-Read a previously written CSV file and create a Logic::TruthTable
+=head3 import_json()
+
+Read a previously written CSV or JSON file and create a Logic::TruthTable
 object from it.
+
+    #
+    # Read in a JSON file.
+    #
+    if (open my $fh_x3, "<:encoding(utf8)", "excess_3.json")
+    {
+        $truthtable = Logic::TruthTable->import_json(
+            read_handle => $fh_x3,
+            algorithm => $algorithm,
+        );
+        close $fh_x3;
+    }
+
 
     #
     # Read in a CSV file.
     #
-    if (open my $lf, "<:encoding(utf8)", "excess_3.csv")
+    if (open my $lf, "<", "excess_3.csv")
     {
         $truthtable = Logic::TruthTable->import_csv(
             read_handle => $lf,
+            dc => '-',
+            algorithm => $algorithm,
+            title => 'Four bit Excess-3 table',
+            termtype => 'minterms',
         );
         close $lf;
     }
 
+Making your code handle the opening and closing of the file may
+seem like an unnecessary inconvenience, but one benefit is that it
+allows you to make use of STDIN or the __DATA__ section:
 
-The don't-care character doesn't have to be set in this case, as import_csv()
-will assume anything not a 0 or 1 is the don't-care character. Of course you
-may set it anyway if you want to change it from the default don't-care character
-in the truth table object.
+    my $ttable = Logic::TruthTable->import_csv(
+        title => "Table created from __DATA__ section.",
+        read_handle => \*DATA,
+    );
+    print $ttable->fnsolve();
+    exit(0);
+    __DATA__
+    c2,c1,c0,,w1,w0
+    0,0,0,,X,0
+    0,0,1,,X,X
+    0,1,0,,X,X
+    0,1,1,,X,1
+    1,0,0,,X,X
+    1,0,1,,0,X
+    1,1,0,,1,1
+    1,1,1,,0,1
 
-You can set whether the truth table object is created using the
-minterms or the maxterms of the CSV file by using the C<termtype>
-attribute:
+The attributes read in may be set or overridden, as the file may not
+have the attributes that you want. CSV files in particular do not have a
+title or termtype, and without the C<dc> option the truth table's
+don't-care character will be the object's default character, not what was
+stored in the file.
+
+You can set whether the truth table object is created using its
+minterms or its maxterms by using the C<termtype> attribute:
 
     $truthtable = Logic::TruthTable->import_csv(
         read_handle => $lf,
         termtype => 'maxterms',        # or 'minterms'.
     );
 
-By default the object is created with minterms.
+By default the truth table is created with minterms.
 
 In addition to the termtype, you may also set the title, don't-care character,
 and algorithm attributes. Width, variable names, and function names cannot be
 set as these are read from the file.
 
-    $truthtable = Logic::TruthTable->import_csv(
-        read_handle => $lf,
+    $truthtable = Logic::TruthTable->import_json(
+        read_handle => $fh_x3,
         title => "Excess-3 multiplier",
         dc => '.',
         algorithm => 'QuineMcCluskey'
     );
 
+The options are:
+
+=over 2
+
+=item read_handle
+
+The opened file handle for reading.
+
+=item dc
+
+The don't-care symbol to use in the file. In the case of the CSV file,
+becomes the default character of the table and its columns. In the case
+of the JSON file, becomes the truth table's default character, but may
+not be an individual column's character if it already has a value set.
+
+=item algorithm
+
+The truth table's algorithm of choice. The algorthm's module must be one
+that is intalled, or the truth table object will fail to build.
+
+=item title
+
+The title of the truth table.
+
+=item termtype
+
+The terms to use when creating the columns. May be either C<minterms>
+(the default) or C<maxterms>.
+
+=back
+
 The method returns undef if an error is encountered.
 
-Note that this method cannot read Logic Friday's minimized export
-format, only the full, not-minimized files.
+Note that C<import_csv()> cannot read Logic Friday's minimized export
+format, only its full, not-minimized files.
 
 =cut
 
@@ -820,6 +1173,90 @@ sub import_csv
 	);
 }
 
+sub import_json
+{
+	my $self = shift;
+	my(%opts) = @_;
+
+	my $handle = $opts{read_handle};
+	my $termtype = $opts{termtype} // 'minterms';
+
+	unless (defined $handle)
+	{
+		carp "import_json(): no file opened.";
+		return undef;
+	}
+
+	#
+	# The attributes that may be overridden by the function's caller.
+	#
+	my @opt_atts = qw(algorithm title dc);
+
+	#
+	# Slurp in the entire JSON string.
+	#
+	my $jstr = do {
+		local $/ = undef;
+		<$handle>;
+	};
+
+	#
+	# Take the JSON string and parse it.
+	#
+	### JSON string read in: $jstr
+	#
+	my %jhash = %{ decode_json($jstr) };
+
+	my $width = $jhash{width};
+	my @vars = @{ $jhash{vars} };
+	my @functions = @{ $jhash{functions} };
+	my @jcols = @{ $jhash{columns} };
+
+	#
+	# Use JSON, or passed-in, or default attributes?
+	#
+	map{$jhash{$_} = $opts{$_}} grep{exists $opts{$_}} @opt_atts;
+
+	my %other = map{$_, $jhash{$_}} grep{exists $jhash{$_}} @opt_atts;
+
+	my @columns;
+	#
+	# Go through the columns array of the JSON import.
+	#
+	### columns : @jcols
+	#
+	for my $c (0 .. $#functions)
+	{
+		my $base81str = $jcols[$c]->{base81};
+		my($minref, $maxref, $dontcaresref) =
+			terms_from_base81($width, $base81str);
+
+		my %colhash = map{$_, $jcols[$c]->{$_}}
+			grep{exists $jcols[$c]->{$_}} @opt_atts;
+
+		if (exists $jcols[$c]->{termtype} and
+			$jcols[$c]->{termtype} eq 'maxterms')
+		{
+			$colhash{maxterms} = $maxref;
+		}
+		else
+		{
+			$colhash{minterms} = $minref;
+		}
+		$colhash{dontcares} = $dontcaresref if (scalar @{$dontcaresref} > 0);
+
+		push @columns, {%colhash};
+	}
+
+	return Logic::TruthTable->new(
+		width => $width,
+		%other,
+		vars => [@vars],
+		functions => [@functions],
+		columns => [@columns],
+	);
+}
+
 
 =head1 AUTHOR
 
@@ -862,12 +1299,23 @@ L<http://search.cpan.org/dist/Logic-TruthTable/>
 =back
 
 
-=head1 ACKNOWLEDGEMENTS
+=head1 SEE ALSO
 
+=over 3
+
+=item
+
+Introduction To Logic Design, by Sajjan G. Shiva, 1998.
+
+=item
+
+L<Logic Friday|http://sontrak.com/>: "Free software for boolean logic optimization, analysis, and synthesis."
+
+=back
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2015 John M. Gamble.
+Copyright 2017 John M. Gamble.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published
@@ -878,4 +1326,4 @@ See L<http://dev.perl.org/licenses/> for more information.
 
 =cut
 
-1; # End of Logic::TruthTable
+1;
