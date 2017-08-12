@@ -28,18 +28,16 @@ my @expected = (
 
 for my $eqn (@soln)
 {
-	ok(scalar (grep($eqn eq $_, @expected)) == 1, $table->title);
+	ok(scalar (grep($eqn eq $_, @expected)) == 1,
+			$table->title . q(: returned ) . $eqn);
 }
 
-@soln = $table->fnsolve();
+my %fnsoln = $table->fnsolve();
 
-#map {diag $_ } @soln;
-
-@expected = (
-	q/f0 = (a2a1') + (a1a0')/
-);
-
-for my $eqn (@soln)
+for my $fn (keys %fnsoln)
 {
-	ok(scalar (grep($eqn eq $_, @expected)) == 1, $table->title);
+	my $eqn = $fnsoln{$fn};
+
+	ok(scalar (grep($eqn eq $_, @expected)) == 1,
+			$table->title . q(: returned ) . $eqn);
 }

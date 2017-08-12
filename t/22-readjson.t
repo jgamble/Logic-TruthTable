@@ -10,11 +10,11 @@ use Test::More tests => 7;
 #
 # (in column F1)
 #
-# 'MG0_Blue' translates to '0-1101-10000--1-010-1-0--00-1111'
+# 'MG0_Blue' translates to '0-1101-10000--11010-1-0--00-1111'
 # which breaks down to:
-# minterms: [2, 3, 5, 7, 14, 17, 20, 28 .. 31]
+# minterms: [2, 3, 5, 7, 14, 15, 17, 20, 28 .. 31]
 # maxterms: [0, 4, 8 .. 11, 16, 18, 22, 25, 26]
-# don't-cares: [1, 6, 12, 13, 15, 19, 21, 23, 24, 27]
+# don't-cares: [1, 6, 12, 13, 19, 21, 23, 24, 27]
 #
 # (in column F0)
 #
@@ -25,7 +25,7 @@ use Test::More tests => 7;
 # don't-cares: [1, 2, 4, 7, 9, 10, 11, 16, 19, 24, 26, 27, 28, 30, 31]
 #
 my %col_mins = (
-	F1 => [2, 3, 5, 7, 14, 17, 20, 28 .. 31],
+	F1 => [2, 3, 5, 7, 14, 15, 17, 20, 28 .. 31],
 	F0 => [3, 8, 12, 13, 14, 22]
 );
 my %col_maxs = (
@@ -33,7 +33,7 @@ my %col_maxs = (
 	F0 => [0, 5, 6, 15, 17, 18, 20, 21, 23, 25, 29]
 );
 my %col_dcs = (
-	F1 => [1, 6, 12, 13, 15, 19, 21, 23, 24, 27],
+	F1 => [1, 6, 12, 13, 19, 21, 23, 24, 27],
 	F0 => [1, 2, 4, 7, 9, 10, 11, 16, 19, 24, 26, 27, 28, 30, 31]
 );
 
@@ -53,7 +53,7 @@ SKIP: {
 
 	for my $f ( @{$ttable->functions()} )
 	{
-		my $col = $ttable->get_fncolumn($f);
+		my $col = $ttable->fncolumn($f);
 		ok(defined $col, "Column $f not found.");
 		#diag("Checking column $f...");
 
@@ -77,5 +77,5 @@ __DATA__
 "dc": "-",
 "vars": ["a4", "a3", "a2", "a1", "a0"],
 "functions": ["F0", "F1"],
-"columns": [{"title": "F0", "base81": "Purdu3!!"}, {"title": "F1", "base81": "MG0_Blue"}]
+"columns": [{"title": "F0", "pack81": "Purdu3!!"}, {"title": "F1", "pack81": "MG0_Blue"}]
 }

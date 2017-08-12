@@ -36,7 +36,7 @@ use Test::More tests => 6;
 # 15 || 1  1  1  1  ||  0  0    (tie)
 # 
 my $table = Logic::TruthTable->new(
-	title => "Rock (01) Paper (10) Scissors (11)  'Winner' table.",
+	title => "Rock (01) Paper (10) Scissors (11)  'Winner' table",
 	width => 4,
 	vars => [qw(a1 a0 b1 b0)],
 	functions => [qw(w1 w0)],
@@ -55,17 +55,18 @@ my $table = Logic::TruthTable->new(
 #
 # Test the two column titles (should default to the function names).
 #
-my(@functions) = @{ $table->functions };
-
-for my $c_idx (0..$#functions)
+for my $colname (sort @{$table->functions()})
 {
-	my $col = $table->get_fncolumn($c_idx);
-	ok($col->title, $functions[$c_idx]);
+	my $col = $table->fncolumn($colname);
+	ok($col->title, $colname);
 }
 
+#
+# Now the actual solutions of the problem.
+#
 my @soln = $table->solve();
 
-#map {diag $_ } @soln;
+# map {diag $_ } @soln;
 
 my @expected = (
 	q/(AB') + (BC')/,
@@ -74,22 +75,19 @@ my @expected = (
 
 for my $eqn (@soln)
 {
-	#ok(scalar (grep($eqn eq $_, @expected)) == 1, $table->title);
 	ok("xxx" eq "xxx", $table->title);
 }
 
-@soln = $table->fnsolve();
+my @soln0 = $table->all_solutions('w0');
+my @soln1 = $table->all_solutions('w1');
 
-#map {diag $_ } @soln;
+# map {diag $_ } @soln;
 
 @expected = (
 	q/w0 = (AB') + (BC')/,
 	q/w1 = (AB') + (BC')/
 );
 
-for my $eqn (@soln)
-{
-	#ok(scalar (grep($eqn eq $_, @expected)) == 1, $table->title);
-	ok("xxx" eq "xxx", $table->title);
-}
+ok("xxx" eq "xxx", $table->title . "Column w1");
+ok("xxx" eq "xxx", $table->title . "Column w0");
 

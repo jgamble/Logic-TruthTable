@@ -32,7 +32,7 @@ SKIP: {
 
 	for my $f ( @{$ttable->functions()} )
 	{
-		my $col = $ttable->get_fncolumn($f);
+		my $col = $ttable->fncolumn($f);
 		ok(defined $col, "Column $f not found.");
 
 		if (defined $col)

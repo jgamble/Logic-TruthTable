@@ -7,14 +7,14 @@ use Test::More tests => 2;
 use Logic::TruthTable;
 
 #
-# If we don't have Algorithm::QuineMcCluskey installed, then this
+# If we don't have Algorithm::Espresso installed, then this
 # test file isn't doing anything.
 #
 SKIP: {
-	eval { require Algorithm::QuineMcCluskey };
-	skip  "Algorithm::QuineMcCluskey is not installed", 2 if $@;
+	eval { require Algorithm::Espresso };
+	skip  "Algorithm::Espresso is not installed", 2 if $@;
 
-	my $q1 = Algorithm::QuineMcCluskey->new(
+	my $q1 = Algorithm::Espresso->new(
 		width=>3, 
 		minterms => [2, 4, 5, 6],
 		title => "Column 0",
@@ -41,16 +41,12 @@ SKIP: {
 			$table->title . q(: returned ) . $eqn);
 	}
 
-	@soln = $table->fnsolve();
+	my %fnsoln = $table->fnsolve();
 
-	#map {diag $_ } @soln;
-
-	@expected = (
-		q/f0 = (AB') + (BC')/
-	);
-
-	for my $eqn (@soln)
+	for my $fn (keys %fnsoln)
 	{
+		my $eqn = $fnsoln{$fn};
+
 		ok(scalar (grep($eqn eq $_, @expected)) == 1,
 			$table->title . q(: returned ) . $eqn);
 	}

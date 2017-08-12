@@ -15,27 +15,31 @@ my $builder = Module::Build->new(
 		'Logic::TruthTable' => {
 			file => 'lib/Logic/TruthTable.pm',
 		},
+		'Logic::TruthTable::Convert81' => {
+			file => 'lib/Logic/TruthTable/Convert81.pm',
+		},
 		'Logic::TruthTable::Util' => {
 			file => 'lib/Logic/TruthTable/Util.pm',
 		},
 	},
 
 	requires => {
-		perl => '5.10.1',
+		perl => '5.16.1',
 		Moose => '2.16',
 		Carp => 0,
 		JSON => '2.61',
+		'Convert::Base81' => '1.00',
 		'Logic::Minimizer' => '1.00',
-		'List::MoreUtils' => '0.401',
 		'Module::Runtime' => '0.014',
 		'Text::CSV' => 0,
 		'namespace::autoclean' => '0.16',
 	},
 	configure_requires => {
-		'Module::Build' => '0.4',
+		'Module::Build' => '0.4224',
 	},
 	build_requires => {
 		'Test::More' => 0,
+		'Test::Output' => 0,
 		'Test::Deep' => '1.12',
 	},
 

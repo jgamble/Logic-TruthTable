@@ -8,7 +8,7 @@ package Logic::TruthTable::Util;
 
 use strict;
 use warnings;
-use 5.010001;
+use 5.016001;
 
 use Carp;
 use Exporter;
@@ -65,14 +65,14 @@ from your function and, for each set bit (or if using maxterms,
 unset bit), will push the minterm (or maxterm) onto each array
 corresponding to its column.
 
-For example, if the value of row 20 is 13 (in binary C<0b1101>),
-then a call to C<push_minterm_umns(20, 13, \@w, \@x, \@y, \@z);>
-will push 20 onto array variables C<@w>, C<@x>, and C<@z>, while a call to
-C<push_maxterm_umns(20, 13, \@w, \@x, \@y, \@z);> will push a 20 onto
+For example, if the value of row 20 is 5 (in binary C<0b101>),
+then a call to C<push_minterm_columns(20, 5, \@x, \@y, \@z);>
+will push 20 onto array variables C<@x>, and C<@z>, while a call to
+C<push_maxterm_columns(20, 5, \@x, \@y, \@z);> will push a 20 onto
 array variable C<@y> only.
 
 Bit values past the available columns will simply be dropped, while
-excess columns will either either never have terms pushed on them
+excess columns will either never have terms pushed on them
 (C<push_minterm_columns()>) or always have terms pushed on them
 (C<push_maxterm_columns()>).
 
@@ -83,14 +83,14 @@ For example:
     # The don't-care terms will be common across
     # all columns.
     #
-    my(@colx, @coly, @colz, @dontcares);
+    my(@col2, @col1, @col0, @dontcares);
 
     #
     # For each cell, return a direction.
     #
     for my $idx (0..63)
     {
-        my $dir = sp_move_to($idx);
+        my $dir = sp_moveto($idx);
 
         #
         # In this example, a cell that cannot be exited cannot
@@ -106,7 +106,7 @@ For example:
             # For any set bit in $dir, push $idx onto the corresponding
             # column list.
             #
-            push_minterm_columns($idx, $dir, \@colx, \@coly, \@colz);
+            push_minterm_columns($idx, $dir, \@col2, \@col1, \@col0);
         }
     }
 
@@ -116,134 +116,22 @@ truth table.
     my $dir_table = Logic::TruthTable->new(
                 title => "Sandusky Path",
                 width => 6,
-                vars => [qw(A B C D E F)],
-                functions => [qw(X Y Z)],
+                vars => [qw(a b c d e f)],
+                functions => [qw(m2 m1 m0)],
                 columns => [
                     {
-                        minterms => \@colx,
+                        minterms => \@col2,
                         dontcares => \@dontcares,
                     },
                     {
-                        minterms => \@coly,
+                        minterms => \@col1,
                         dontcares => \@dontcares,
                     },
                     {
-                        minterms => \@colz,
+                        minterms => \@col0,
                         dontcares => \@dontcares,
                     } ],
         );
-
-In some cases you may not even know how many columns of output (or input)
-you will need for your problem. But since the vars, functions, and columns
-attributes are all array references, these can be created programatically:
-
-    #
-    # Create a truth table for an extended Rock Paper Scissors game.
-    #
-    my $tt = extended_rps(7);
-
-    #
-    # We may not have the faster algorthm installed, and the
-    # truth table may be very large, so save the table as a
-    # file for Logic Friday, and exit.
-    #
-    $tt->export_csv(dc => 'X', write_handle => \*STDOUT);
-    exit(0);
-
-    #
-    # 'Winner' function for an extended Rock Paper Scissors game.
-    #
-    sub rpswinner
-    {
-        my($player_a, $player_b, $length) = @_;
-
-        return 0 if ($player_a == $player_b);    # Tie, of course.
-
-        my $val = $player_a - $player_b + $length;
-
-        return $player_a if ($val % 3 == 1);
-        return $player_b;
-    }
-
-    #
-    # Create an extended Rock Paper Scissors 'winners' table.
-    # Given two throws, return which of the two throws wins.
-    # For example, if the two throws in a game of
-    # Rock Paper Scissors Spock Lizard are Paper and Lizard, the
-    # output columns would indicate Lizard (eats Paper).
-    #
-    # Throws are numbered from 1 (Rock) onward, with Tie being 0.
-    #
-    # Returns the Logic::TruthTable object.
-    #
-    sub extended_rps
-    {
-        my($n) = @_;
-        my @dontcares;
-
-        #
-        # How many binary columns do we need represent a throw?
-        #
-        my $w = length(sprintf("%b", $n));
-
-        my $two_exp_w = 2 ** $w;
-        my $length = $two_exp_w - 1;
-
-        #
-        # Make an empty array of output terms.
-        #
-        my @aterms;
-        push @aterms, [] for (0 .. $w-1);
-
-        #
-        # Now, all the possible combinations of player A vs. player B.
-        #
-        for my $j (0 .. $length)
-        {
-            for my $k (0 .. $length)
-            {
-                my $row = $j * $two_exp_w + $k;
-                if ($k == 0 or $j == 0)
-                {
-                    push @dontcares, $row;
-                }
-                else
-                {
-                    my $val = rpswinner($j, $k, $length);
-                    push_minterm_columns($row, $val, @aterms);
-                }
-            }
-        }
-        #
-        # Let's create the table's columns.
-        #
-        my @columns;
-
-        for my $idx (0 .. $w-1)
-        {
-            push @columns, {dontcares => [@dontcares],
-                            minterms => [@{$aterms[$idx]}], };
-        }
-
-        #
-        # And the variable and function names.
-        # (We are assuming fewer than 1024 choices here.)
-        #
-        my @vars_a = reverse(('a0' .. 'a9')[0 .. $w-1]);
-        my @vars_b = reverse(('b0' .. 'b9')[0 .. $w-1]);
-        my @fns = reverse(('w0' .. 'w9')[0 .. $w-1]);
-
-        my $tt = Logic::TruthTable->new(
-            title => "$n-throw Rock Paper Scissors (extended)",
-            width =>  2 * $w,
-            vars => [@vars_a, @vars_b],
-            functions => [@fns],
-            columns => [@columns],
-        );
-
-        return $tt;
-    }
-
 
 =cut
 

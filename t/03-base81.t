@@ -4,7 +4,7 @@ use strict;
 use warnings;
 use Test::More tests => 8;
 
-use Logic::TruthTable::Base81 qw(:all);
+use Logic::TruthTable::Convert81 qw(:all);
 
 #
 # Encode tri-value ((0, 1, 2) == (false, true, don't-care)) contents
@@ -23,15 +23,12 @@ my($b81str, $mintermsref, $maxtermsref, $dcsref);
 
 #
 # Test 1 (four parts):
-# 'MG0_Blue' translates to '0-1101-10000--1-010-1-0--00-1111'
+# 'MG0_Blue' translates to '0-1101-10000--11010-1-0--00-1111'
 # which breaks down to:
-# minterms: [2, 3, 5, 7, 14, 17, 20, 28 .. 31]
-# maxterms: [0, 4, 8 .. 11, 16, 18, 22, 25, 26]
-# don't-cares: [1, 6, 12, 13, 15, 19, 21, 23, 24, 27]
 #
-@minterms = (2, 3, 5, 7, 14, 17, 20, 28 .. 31);
+@minterms = (2, 3, 5, 7, 14, 15, 17, 20, 28 .. 31);
 @maxterms = (0, 4, 8 .. 11, 16, 18, 22, 25, 26);
-@dcterms = (1, 6, 12, 13, 15, 19, 21, 23, 24, 27);
+@dcterms = (1, 6, 12, 13, 19, 21, 23, 24, 27);
 
 $b81str = terms_to_base81($width, 1, \@minterms, \@dcterms);
 ok($b81str eq "MG0_Blue", "1a: Base81 string should be 'MG0_Blue', but is '$b81str'");
@@ -51,9 +48,6 @@ is_deeply($dcsref, \@dcterms,
 #
 # 'Purdu3!!' translates to '0--1-00-1---1110-00-0010-0---0--'
 # which breaks down to:
-# minterms: [3, 8, 12, 13, 14, 22]
-# maxterms: [0, 5, 6, 15, 17, 18, 20, 21, 23, 25, 29]
-# don't-cares: [1, 2, 4, 7, 9, 10, 11, 16, 19, 24, 26, 27, 28, 30, 31]
 #
 @minterms = (3, 8, 12, 13, 14, 22);
 @maxterms = (0, 5, 6, 15, 17, 18, 20, 21, 23, 25, 29);
