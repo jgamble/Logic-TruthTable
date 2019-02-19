@@ -611,7 +611,7 @@ sub fncolumn
 	#### Let's look an an element: $self->_fn_lookup()->{$fn_name}
 	#
 
-	$idx = %{$self->_fn_lookup()}{$fn_name};
+	$idx = $self->_fn_lookup()->{$fn_name};
 
 	return undef unless (defined $idx);
 	return ${$self->_get_columns}[$idx];
