@@ -177,23 +177,22 @@ Create a truth table.
     #
     # Get and print the results.
     #
-    my @solns = $tt_2421 ->solve();
+    my @solns = $tt_2421->solve();
     print join("\n\n", @solns), "\n";
 
     #
     # Save the truth table values as a CSV file.
     #
     open my $fh_csv, ">", "twofourtwoone.csv" or die "Error opening CSV file.";
-    $tt_2421 ->export_csv(write_handle => \$fh_csv);
+    $tt_2421->export(format => 'csv', write_handle => \$fh_csv);
     close $fh_csv or warn "Error closing CSV file: $!";
 
     #
     # Or save the truth table values as a JSON file.
     #
     open my $fh_json, ">", "twofourtwoone.json" or die "Error opening JSON file.";
-    $tt_2421 ->export_json(write_handle => \$fh_json);
+    $tt_2421->export(format => 'json', write_handle => \$fh_json);
     close $fh_json or warn "Error closing JSON file: $!";
-
 
 =head1 Description
 
@@ -610,8 +609,6 @@ sub fncolumn
 	#### Let's look at the hash: %{$self->_fn_lookup()}
 	#### Let's look an an element: $self->_fn_lookup()->{$fn_name}
 	#
-
-	#$idx = %{$self->_fn_lookup()}{$fn_name};
 	$idx = $self->_fn_lookup()->{$fn_name};
 
 	return undef unless (defined $idx);
@@ -619,11 +616,13 @@ sub fncolumn
 
 }
 
-=head3 export_csv()
+=head export()
 
-=head3 export_json()
+Write the truth table out as either a CSV, JSON, or PLA file.
 
-Write the truth table out as either a CSV file or a JSON file.
+(This supersedes the export_csv() and export_json() methods. These methods will
+still be available for this and the next release of Logic::TruthTable, but will
+be removed after that.)
 
 In either case, the calling code opens the file and provides the file
 handle:
@@ -631,7 +630,7 @@ handle:
     open my $fh_nq, ">:encoding(utf8)", "nq_6.json"
         or die "Can't open export file: $!";
 
-    $tt->export_json(write_handle => $fh_nq);
+    $tt->export(format => "json", write_handle => $fh_nq);
 
     close $fh_nq or warn "Error closing JSON file: $!";
 
@@ -639,17 +638,24 @@ Making your code handle the opening and closing of the file may
 seem like an unnecessary inconvenience, but one benefit is that it
 allows you to make use of STDOUT:
 
-    $tt->export_csv(write_handle => \*STDOUT, dc => 'X');
+    $tt->export(format => "csv", write_handle => \*STDOUT, dc => 'X');
 
-A CSV file can store the varible names, function names, minterms,
-maxterms, and don't-care terms. The don't-care character of the object
-may be overridden with your own choice by using the C<dc> parameter.
-Whether the truth table uses minterms or maxterms will have to be a
-choice made when importing the file (see L</import_csv()>).
+The three formats exist for different programs, and don't necessarily
+store all of the object's attributes (C<algorithm>, for example is not
+stored in any of the formats since the program reading the file will
+chose that).
 
-CSV is a suitable format for reading by other programs, such as spreadsheets,
-or the program L<Logic Friday|http://sontrak.com/>, a tool for working with
-logic functions.
+The CSV format is a suitable format for reading by other programs,
+such as spreadsheets or the program
+L<Logic Friday|https://web.archive.org/web/20180204131842/http://sontrak.com/>,
+a tool for working with logic functions. It does not store the title
+of the object, nor whether the original object was solved with maxterms or minterms.
+
+The JSON format is for L<Logic::TruthTable> itself, and stores all
+of the necessary information in a compressed form to re-create the object later.
+
+The PLA format is used by L<espresso>, a program the makes use of algorithm
+of the same name.
 
 In the example below, a file is being written out for reading
 by Logic Friday. Note that Logic Friday insists on its own
@@ -661,7 +667,7 @@ don't-care character, which we can set with the 'dc' option:
         # Override the don't-care character, as Logic Friday
         # insists on it being an 'X'.
         #
-        $truthtable->export_csv(write_handle => $fh_mwc, dc => 'X');
+        $truthtable->export(format => 'csv', write_handle => $fh_mwc, dc => 'X');
 
         close $fh_mwc or warn "Error closing CSV file: $!";
     }
@@ -671,13 +677,14 @@ don't-care character, which we can set with the 'dc' option:
     }
 
 
-The JSON file will store all of the attributes that were in the
-truth table, except for the algorithm, which will have to be
-set when importing the file.
-
 The options are:
 
 =over 2
+
+=item format
+
+The format in which to write the file. The choices are 'CSV', 'JSON', and
+'PLA', as described above.  (I<Default: 'json'>)
 
 =item write_handle
 
@@ -696,7 +703,7 @@ success it returns the truth table object.
 
 =cut
 
-sub export_csv
+sub export
 {
 	my $self = shift;
 	my(%opts) = @_;
@@ -707,9 +714,41 @@ sub export_csv
 
 	unless (defined $handle)
 	{
-		carp "export_csv(): no file opened for export.";
+		carp "export(): no file opened for export.";
 		return undef;
 	}
+
+	my $exportfmt = $opts{format} // 'json';
+
+	if ($exportfmt eq 'csv')
+	{
+		return _export_csv(%opts);
+	}
+	elsif ($exportfmt eq 'json')
+	{
+		return _export_json(%opts);
+	}
+	elsif ($exportfmt eq 'pla')
+	{
+		return _export_pla(%opts);
+	}
+
+	carp "export(): unknown export format '$exportfmt'.";
+	return undef;
+}
+
+#
+# Soon-to-be-deprecated export funcs.
+#
+sub export_csv { my $self = shift; return $self->export(format => "csv", @_); }
+sub export_json { my $self = shift; return $self->export(format => "json", @_); }
+
+#
+# The heavy lifting/exporting is done here.
+#
+sub _export_csv
+{
+	my(%opts) = @_;
 
 	my $w = $self->width;
 	my $dc = $opts{dc} // $self->dc;
@@ -763,9 +802,8 @@ sub export_csv
 	return $self;
 }
 
-sub export_json
+sub _export_json
 {
-	my $self = shift;
 	my(%opts) = @_;
 
 	my $handle = $opts{write_handle};
@@ -916,7 +954,7 @@ The method returns undef if an error is encountered.
 
 =cut
 
-sub import_csv
+sub import
 {
 	my $self = shift;
 	my(%opts) = @_;
@@ -924,13 +962,9 @@ sub import_csv
 	my $handle = $opts{read_handle};
 	my $termtype = $opts{termtype} // 'minterms';
 
-	my @vars;
-	my @functions;
-	my $width = 0;
-
 	unless (defined $handle)
 	{
-		carp "import_csv(): no file opened.";
+		carp "import(): no file opened.";
 		return undef;
 	}
 	unless ($termtype =~ /minterms|maxterms/)
@@ -938,6 +972,45 @@ sub import_csv
 		carp "Incorrect value for termtype ('minterms' or 'maxterms')";
 		return undef;
 	}
+
+	$opts{termtype} = $termtype;
+
+	my $importfmt = $opts{format} // 'json';
+
+	if ($importfmt eq 'csv')
+	{
+		return _import_csv(%opts);
+	}
+	elsif ($importfmt eq 'json')
+	{
+		return _import_json(%opts);
+	}
+	elsif ($importfmt eq 'pla')
+	{
+		return _import_pla(%opts);
+	}
+
+	carp "import(): unknown import format '$importfmt'.";
+	return undef;
+
+}
+
+#
+# Soon-to-be-deprecated import funcs.
+#
+sub import_csv { my $self = shift; return $self->import(format => "csv", @_); }
+sub import_json { my $self = shift; return $self->import(format => "json", @_); }
+
+sub _import_csv
+{
+	my(%opts) = @_;
+
+	my $handle = $opts{read_handle};
+	my $termtype = $opts{termtype};
+
+	my @vars;
+	my @functions;
+	my $width = 0;
 
 	my $csv = Text::CSV->new( {binary => 1} );
 
@@ -1044,19 +1117,12 @@ sub import_csv
 	);
 }
 
-sub import_json
+sub _import_json
 {
-	my $self = shift;
 	my(%opts) = @_;
 
 	my $handle = $opts{read_handle};
-	my $termtype = $opts{termtype} // 'minterms';
-
-	unless (defined $handle)
-	{
-		carp "import_json(): no file opened.";
-		return undef;
-	}
+	my $termtype = $opts{termtype};
 
 	#
 	# The attributes that may be overridden by the function's caller.
