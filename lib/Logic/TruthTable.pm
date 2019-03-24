@@ -184,14 +184,14 @@ Create a truth table.
     # Save the truth table values as a CSV file.
     #
     open my $fh_csv, ">", "twofourtwoone.csv" or die "Error opening CSV file.";
-    $tt_2421->export(format => 'csv', write_handle => \$fh_csv);
+    $tt_2421->exporttable(format => 'csv', write_handle => \$fh_csv);
     close $fh_csv or warn "Error closing CSV file: $!";
 
     #
     # Or save the truth table values as a JSON file.
     #
     open my $fh_json, ">", "twofourtwoone.json" or die "Error opening JSON file.";
-    $tt_2421->export(format => 'json', write_handle => \$fh_json);
+    $tt_2421->exporttable(format => 'json', write_handle => \$fh_json);
     close $fh_json or warn "Error closing JSON file: $!";
 
 =head1 Description
@@ -616,7 +616,7 @@ sub fncolumn
 
 }
 
-=head export()
+=head3 exporttable()
 
 Write the truth table out as either a CSV, JSON, or PLA file.
 
@@ -630,7 +630,7 @@ handle:
     open my $fh_nq, ">:encoding(utf8)", "nq_6.json"
         or die "Can't open export file: $!";
 
-    $tt->export(format => "json", write_handle => $fh_nq);
+    $tt->exporttable(format => "json", write_handle => $fh_nq);
 
     close $fh_nq or warn "Error closing JSON file: $!";
 
@@ -638,7 +638,7 @@ Making your code handle the opening and closing of the file may
 seem like an unnecessary inconvenience, but one benefit is that it
 allows you to make use of STDOUT:
 
-    $tt->export(format => "csv", write_handle => \*STDOUT, dc => 'X');
+    $tt->exporttable(format => "csv", write_handle => \*STDOUT, dc => 'X');
 
 The three formats exist for different programs, and don't necessarily
 store all of the object's attributes (C<algorithm>, for example is not
@@ -667,7 +667,7 @@ don't-care character, which we can set with the 'dc' option:
         # Override the don't-care character, as Logic Friday
         # insists on it being an 'X'.
         #
-        $truthtable->export(format => 'csv', write_handle => $fh_mwc, dc => 'X');
+        $truthtable->exporttable(format => 'csv', write_handle => $fh_mwc, dc => 'X');
 
         close $fh_mwc or warn "Error closing CSV file: $!";
     }
@@ -703,18 +703,14 @@ success it returns the truth table object.
 
 =cut
 
-sub export
+sub exporttable
 {
 	my $self = shift;
 	my(%opts) = @_;
 
-	my $handle = $opts{write_handle};
-
-	### handle: $handle
-
-	unless (defined $handle)
+	unless (exists $opts{write_handle} and defined $opts{write_handle})
 	{
-		carp "export(): no file opened for export.";
+		carp "exporttable(): no file opened for export.";
 		return undef;
 	}
 
@@ -722,38 +718,40 @@ sub export
 
 	if ($exportfmt eq 'csv')
 	{
-		return _export_csv(%opts);
+		return $self->_export_csv(%opts);
 	}
 	elsif ($exportfmt eq 'json')
 	{
-		return _export_json(%opts);
+		return $self->_export_json(%opts);
 	}
 	elsif ($exportfmt eq 'pla')
 	{
-		return _export_pla(%opts);
+		return $self->_export_pla(%opts);
 	}
 
-	carp "export(): unknown export format '$exportfmt'.";
+	carp "exporttable(): unknown export format '$exportfmt'.";
 	return undef;
 }
 
 #
 # Soon-to-be-deprecated export funcs.
 #
-sub export_csv { my $self = shift; return $self->export(format => "csv", @_); }
-sub export_json { my $self = shift; return $self->export(format => "json", @_); }
+sub export_csv {my $self = shift; return $self->exporttable(format => "csv", @_);}
+sub export_json {my $self = shift; return $self->exporttable(format => "json", @_);}
 
 #
 # The heavy lifting/exporting is done here.
 #
 sub _export_csv
 {
+	my $self = shift;
 	my(%opts) = @_;
 
 	my $w = $self->width;
 	my $dc = $opts{dc} // $self->dc;
 	my $fmt = "%0${w}b";
 	my $lastrow = (1 << $w) - 1;
+	my $handle = $opts{write_handle};
 	my @columns;
 
 	#
@@ -804,6 +802,7 @@ sub _export_csv
 
 sub _export_json
 {
+	my $self = shift;
 	my(%opts) = @_;
 
 	my $handle = $opts{write_handle};
@@ -836,9 +835,18 @@ sub _export_json
 	return $self;
 }
 
-=head3 import_csv()
 
-=head3 import_json()
+sub _export_pla
+{
+	my $self = shift;
+	my(%opts) = @_;
+
+	my $handle = $opts{write_handle};
+	my %jhash;
+	my @columns;
+}
+
+=head3 importtable()
 
 Read a previously written CSV or JSON file and create a Logic::TruthTable
 object from it.
@@ -954,19 +962,20 @@ The method returns undef if an error is encountered.
 
 =cut
 
-sub import
+sub importtable
 {
 	my $self = shift;
 	my(%opts) = @_;
 
-	my $handle = $opts{read_handle};
-	my $termtype = $opts{termtype} // 'minterms';
-
-	unless (defined $handle)
+	unless (exists $opts{read_handle} and defined $opts{read_handle})
 	{
-		carp "import(): no file opened.";
+		carp "importtable(): no file opened for import.";
 		return undef;
 	}
+
+	my $termtype = $opts{termtype} // 'minterms';
+	my $importfmt = $opts{format} // 'json';
+
 	unless ($termtype =~ /minterms|maxterms/)
 	{
 		carp "Incorrect value for termtype ('minterms' or 'maxterms')";
@@ -975,34 +984,32 @@ sub import
 
 	$opts{termtype} = $termtype;
 
-	my $importfmt = $opts{format} // 'json';
-
 	if ($importfmt eq 'csv')
 	{
-		return _import_csv(%opts);
+		return $self->_import_csv(%opts);
 	}
 	elsif ($importfmt eq 'json')
 	{
-		return _import_json(%opts);
+		return $self->_import_json(%opts);
 	}
 	elsif ($importfmt eq 'pla')
 	{
-		return _import_pla(%opts);
+		return $self->_import_pla(%opts);
 	}
 
-	carp "import(): unknown import format '$importfmt'.";
+	carp "importtable(): unknown import format '$importfmt'.";
 	return undef;
-
 }
 
 #
 # Soon-to-be-deprecated import funcs.
 #
-sub import_csv { my $self = shift; return $self->import(format => "csv", @_); }
-sub import_json { my $self = shift; return $self->import(format => "json", @_); }
+sub import_csv { my $self = shift; return $self->importtable(format => "csv", @_); }
+sub import_json { my $self = shift; return $self->importtable(format => "json", @_); }
 
 sub _import_csv
 {
+	my $self = shift;
 	my(%opts) = @_;
 
 	my $handle = $opts{read_handle};
@@ -1119,6 +1126,7 @@ sub _import_csv
 
 sub _import_json
 {
+	my $self = shift;
 	my(%opts) = @_;
 
 	my $handle = $opts{read_handle};
@@ -1194,6 +1202,19 @@ sub _import_json
 	);
 }
 
+sub _import_pla
+{
+	my $self = shift;
+	my(%opts) = @_;
+
+	my $handle = $opts{read_handle};
+	my $termtype = $opts{termtype};
+
+	#
+	# The attributes that may be overridden by the function's caller.
+	#
+	my @opt_atts = qw(algorithm title dc);
+}
 
 =head1 AUTHOR
 
