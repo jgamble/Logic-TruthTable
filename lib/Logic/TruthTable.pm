@@ -258,7 +258,7 @@ if the column doesn't set a title.
 
 The default algorithm that will be used to minimize each column.
 
-Currently, there is only one minimizer algorithm (L</Algorithm::QuineMcCluskey>)
+Currently, there is only one minimizer algorithm (L<Algorithm::QuineMcCluskey>)
 available on CPAN, and it is the default.
 
 The name will come from the package name, e.g., having an attribute
@@ -309,7 +309,7 @@ a simple two-variable AND equation would have a string "0001".
 You can use only one of C<minterms>, C<maxterms>, or C<columnstring>.
 
 The minterms or maxterms do not have to be created by hand; there are
-functions in L</Logic::TruthTable::Util> to help create the terms.
+functions in L<Logic::TruthTable::Util> to help create the terms.
 
 =over 4
 
