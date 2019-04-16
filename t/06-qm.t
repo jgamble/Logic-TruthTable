@@ -15,15 +15,15 @@ SKIP: {
 	skip  "Algorithm::QuineMcCluskey is not installed", 2 if $@;
 
 	my $q1 = Algorithm::QuineMcCluskey->new(
-		width=>3, 
+		width => 3, 
 		minterms => [2, 4, 5, 6],
 		title => "Column 0",
 	);
 
 	my $table = Logic::TruthTable->new(
-		width => 3,
+		width => $q1->width,
 		functions => ['f0'],
-		columns => [$q1 ],
+		columns => [$q1],
 		title => 'Random Minterms',
 	);
 
