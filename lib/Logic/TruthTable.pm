@@ -842,8 +842,68 @@ sub _export_pla
 	my(%opts) = @_;
 
 	my $handle = $opts{write_handle};
-	my %jhash;
+	my $w = $self->width;
 	my @columns;
+
+	$opts{title} //= $self->title;
+	$opts{dc} //= $self->dc;
+	$opts{type} //= 'fd';
+
+	#
+	# Print out the width, function names, variable names, output names.
+	#
+	print $handle ".i $w\n.o " . scalar $self->functions . "\n";
+	print $handle ".ilb " . join(" ", $self->vars) . "\n";
+	print $handle ".ob " . join(" ", $self->functions) . "\n";
+
+	#
+	# From ESPRESSO(5OCTTOOLS):
+	#
+	# A Boolean function can be described in one of the following ways:
+	# 
+	# 1)
+	# By providing the ON-set. In this case, espresso computes the OFF-set as
+	# the complement of the ON-set and the DC-set is empty. This is indicated
+	# with the keyword .type f in the input file.
+	# 
+	# 2)
+	# By providing the ON-set and DC-set. In this case, espresso computes the
+	# OFF-set as the complement of the union of the ON-set and the DC-set.
+	# If any minterm belongs to both the ON-set and DC-set, then it is
+	# considered a don't care and may be removed from the ON-set during the
+	# minimization process. This is indicated with the keyword .type fd in
+	# the input file.
+	# 
+	# 3)
+	# By providing the ON-set and OFF-set. In this case, espresso computes
+	# the DC-set as the complement of the union of the ON-set and the
+	# OFF-set. It is an error for any minterm to belong to both the ON-set
+	# and OFF-set. This error may not be detected during the minimization,
+	# but it can be checked with the subprogram "-Dcheck" which will check
+	# the consistency of a function. This is indicated with the keyword
+	# .type fr in the input file.
+	# 
+	# 4)
+	# By providing the ON-set, OFF-set and DC-set. This is indicated with
+	# the keyword .type fdr in the input file.
+	# 
+	# If at all possible, espresso should be given the DC-set (either
+	# implicitly or explicitly) in order to improve the results of the
+	# minimization.
+	#
+	print $handle ".type " . $opts{type} . "\n";
+
+	for my $r_idx (0 .. $lastrow)
+	{
+		my @row = (split(//, sprintf($fmt, $r_idx)), '');
+
+		push @row, shift @{ $columns[$_] } for (0 .. $self->_fn_width);
+
+		$csv->print($handle, [@row]);
+	}
+
+	print ".e\n";
+	return $self;
 }
 
 =head3 importtable()
