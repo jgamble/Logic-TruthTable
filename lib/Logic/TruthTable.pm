@@ -644,6 +644,7 @@ The three formats exist for different programs, and don't necessarily
 store all of the object's attributes (C<algorithm>, for example is not
 stored in any of the formats since the program reading the file will
 chose that).
+<<<<<<< HEAD
 
 The CSV format is a suitable format for reading by other programs,
 such as spreadsheets or the program
@@ -654,6 +655,18 @@ of the object, nor whether the original object was solved with maxterms or minte
 The JSON format is for L<Logic::TruthTable> itself, and stores all
 of the necessary information in a compressed form to re-create the object later.
 
+=======
+
+The CSV format is a suitable format for reading by other programs,
+such as spreadsheets or the program
+L<Logic Friday|https://web.archive.org/web/20180204131842/http://sontrak.com/>,
+a tool for working with logic functions. It does not store the title
+of the object, nor whether the original object was solved with maxterms or minterms.
+
+The JSON format is for L<Logic::TruthTable> itself, and stores all
+of the necessary information in a compressed form to re-create the object later.
+
+>>>>>>> 08703cbe2d63513ac718a73f1d8641039997ddee
 The PLA format is used by L<espresso>, a program the makes use of algorithm
 of the same name.
 
@@ -723,11 +736,36 @@ sub exporttable
 	elsif ($exportfmt eq 'json')
 	{
 		return $self->_export_json(%opts);
+<<<<<<< HEAD
+=======
+	}
+	elsif ($exportfmt eq 'pla')
+	{
+		return $self->_export_pla(%opts);
+>>>>>>> 08703cbe2d63513ac718a73f1d8641039997ddee
 	}
 	elsif ($exportfmt eq 'pla')
 	{
 		return $self->_export_pla(%opts);
 	}
+
+	carp "exporttable(): unknown export format '$exportfmt'.";
+	return undef;
+}
+
+#
+# Soon-to-be-deprecated export funcs.
+#
+sub export_csv {my $self = shift; return $self->exporttable(format => "csv", @_);}
+sub export_json {my $self = shift; return $self->exporttable(format => "json", @_);}
+
+#
+# The heavy lifting/exporting is done here.
+#
+sub _export_csv
+{
+	my $self = shift;
+	my(%opts) = @_;
 
 	carp "exporttable(): unknown export format '$exportfmt'.";
 	return undef;
@@ -842,6 +880,7 @@ sub _export_pla
 	my(%opts) = @_;
 
 	my $handle = $opts{write_handle};
+<<<<<<< HEAD
 	my $w = $self->width;
 	my @columns;
 
@@ -904,6 +943,10 @@ sub _export_pla
 
 	print ".e\n";
 	return $self;
+=======
+	my %jhash;
+	my @columns;
+>>>>>>> 08703cbe2d63513ac718a73f1d8641039997ddee
 }
 
 =head3 importtable()
