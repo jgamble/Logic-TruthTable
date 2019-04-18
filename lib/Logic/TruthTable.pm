@@ -184,14 +184,14 @@ Create a truth table.
     # Save the truth table values as a CSV file.
     #
     open my $fh_csv, ">", "twofourtwoone.csv" or die "Error opening CSV file.";
-    $tt_2421->exporttable(format => 'csv', write_handle => \$fh_csv);
+    $tt_2421->tableexport(format => 'csv', write_handle => \$fh_csv);
     close $fh_csv or warn "Error closing CSV file: $!";
 
     #
     # Or save the truth table values as a JSON file.
     #
     open my $fh_json, ">", "twofourtwoone.json" or die "Error opening JSON file.";
-    $tt_2421->exporttable(format => 'json', write_handle => \$fh_json);
+    $tt_2421->tableexport(format => 'json', write_handle => \$fh_json);
     close $fh_json or warn "Error closing JSON file: $!";
 
 =head1 Description
@@ -636,7 +636,7 @@ of the necessary information in a compressed form to re-create the object later.
 The PLA format is used by L<espresso>, a program the makes use of algorithm
 of the same name.
 
-=head3 exporttable()
+=head3 tableexport()
 
 Write the truth table out as either a CSV, JSON, or PLA file.
 
@@ -650,7 +650,7 @@ handle:
     open my $fh_nq, ">:encoding(utf8)", "nq_6.json"
         or die "Can't open export file: $!";
 
-    $tt->exporttable(
+    $tt->tableexport(
         format => "json",
         write_handle => $fh_nq);
 
@@ -660,7 +660,7 @@ Making your code handle the opening and closing of the file may
 seem like an unnecessary inconvenience, but one benefit is that it
 allows you to make use of STDOUT:
 
-    $tt->exporttable(
+    $tt->tableexport(
         format => "csv",
         write_handle => \*STDOUT,
         dc => 'X');
@@ -675,7 +675,7 @@ don't-care character, which we can set with the 'dc' option:
         # Override the don't-care character, as Logic Friday
         # insists on it being an 'X'.
         #
-        $truthtable->exporttable(
+        $truthtable->tableexport(
             format => 'csv',
             write_handle => $fh_mwc,
             dc => 'X');
@@ -714,17 +714,21 @@ success it returns the truth table object.
 
 =cut
 
-sub exporttable
+sub tableexport
 {
 	my $self = shift;
 	my(%opts) = @_;
 
 	unless (exists $opts{write_handle} and defined $opts{write_handle})
 	{
-		carp "exporttable(): no file opened for export.";
+		carp "tableexport(): no file opened for export.";
 		return undef;
 	}
 
+	#
+	# Use defaults if the key hasn't been specified (other key
+	# defaults will be handled in the _export_xxxx() methods).
+	#
 	$opts{format} //= 'json';
 	$opts{dc} //= $self->dc;
 
@@ -742,7 +746,7 @@ sub exporttable
 		return $self->_export_pla(%opts);
 	}
 
-	carp "exporttable(): unknown export format '" . $opts{format} . "'.";
+	carp "tableexport(): unknown export format '" . $opts{format} . "'.";
 	return undef;
 }
 
@@ -752,12 +756,12 @@ sub exporttable
 sub _edep
 {
 	carp "export_" . $_[0] .
-		" is deprecated; use exporttable(format => ".
+		" is deprecated; use tableexport(format => ".
 		$_[0] . ", ...) instead.\n";
 }
 
-sub export_csv {my $self = shift; _edep("csv"); return $self->exporttable(format => "csv", @_);}
-sub export_json {my $self = shift; _edep("json"); return $self->exporttable(format => "json", @_);}
+sub export_csv {my $self = shift; _edep("csv"); return $self->tableexport(format => "csv", @_);}
+sub export_json {my $self = shift; _edep("json"); return $self->tableexport(format => "json", @_);}
 
 #
 # The heavy lifting/exporting is done here.
@@ -925,7 +929,7 @@ sub _export_pla
 	return $self;
 }
 
-=head3 importtable()
+=head3 tableimport()
 
 Read a previously written CSV or JSON file and create a Logic::TruthTable
 object from it.
@@ -935,7 +939,7 @@ object from it.
     #
     if (open my $fh_x3, "<:encoding(utf8)", "excess_3.json")
     {
-        $truthtable = Logic::TruthTable->importtable(
+        $truthtable = Logic::TruthTable->tableimport(
             format => 'json',
             read_handle => $fh_x3,
             algorithm => $algorithm,
@@ -949,7 +953,7 @@ object from it.
     #
     if (open my $lf, "<", "excess_3.csv")
     {
-        $truthtable = Logic::TruthTable->importtable(
+        $truthtable = Logic::TruthTable->tableimport(
             format => 'csv',
             read_handle => $lf,
             dc => '-',
@@ -964,7 +968,7 @@ Making your code handle the opening and closing of the file may
 seem like an unnecessary inconvenience, but one benefit is that it
 allows you to make use of STDIN or the __DATA__ section:
 
-    my $ttable = Logic::TruthTable->importtable(
+    my $ttable = Logic::TruthTable->tableimport(
         format => 'csv',
         title => "Table created from __DATA__ section.",
         read_handle => \*DATA,
@@ -991,7 +995,7 @@ stored in the file.
 You can set whether the truth table object is created using its
 minterms or its maxterms by using the C<termtype> attribute:
 
-    $truthtable = Logic::TruthTable->importtable(
+    $truthtable = Logic::TruthTable->tableimport(
         format => 'csv',
         read_handle => $lf,
         termtype => 'maxterms',        # or 'minterms'.
@@ -1003,7 +1007,7 @@ In addition to the termtype, you may also set the title, don't-care character,
 and algorithm attributes. Width, variable names, and function names cannot be
 set as these are read from the file.
 
-    $truthtable = Logic::TruthTable->importtable(
+    $truthtable = Logic::TruthTable->tableimport(
         format => 'json',
         read_handle => $fh_x3,
         title => "Excess-3 multiplier",
@@ -1051,22 +1055,26 @@ The method returns undef if an error is encountered.
 
 =cut
 
-sub importtable
+sub tableimport
 {
 	my $self = shift;
 	my(%opts) = @_;
 
 	unless (exists $opts{read_handle} and defined $opts{read_handle})
 	{
-		carp "importtable(): no file opened for import.";
+		carp "tableimport(): no file opened for import.";
 		return undef;
 	}
 
+	#
+	# Since some %opts keys will override table values, only set
+	# defaults for non-table keys (algorithm, for example).
+	# Other defaults will be handled in the _import_xxxx() methods.
+	#
 	$opts{algorithm} //= 'QuineMcCluskey';
 	$opts{format} //= 'json';
-	$opts{termtype} //= 'minterms';
 
-	unless ($opts{termtype} =~ /minterms|maxterms/)
+	if (exists $opts{termtype} and $opts{termtype} !~ /minterms|maxterms/)
 	{
 		carp "Incorrect value for termtype ('minterms' or 'maxterms')";
 		return undef;
@@ -1085,7 +1093,7 @@ sub importtable
 		return $self->_import_pla(%opts);
 	}
 
-	carp "importtable(): unknown import format '" . $opts{format} . "'.";
+	carp "tableimport(): unknown import format '" . $opts{format} . "'.";
 	return undef;
 }
 
@@ -1095,12 +1103,12 @@ sub importtable
 sub _idep
 {
 	carp "import_" . $_[0] .
-		" is deprecated; use importtable(format => ".
+		" is deprecated; use tableimport(format => ".
 		$_[0] . ", ...) instead.\n";
 }
 
-sub import_csv {my $self = shift; _idep("csv"); return $self->importtable(format => "csv", @_);}
-sub import_json {my $self = shift; _idep("json"); return $self->importtable(format => "json", @_);}
+sub import_csv {my $self = shift; _idep("csv"); return $self->tableimport(format => "csv", @_);}
+sub import_json {my $self = shift; _idep("json"); return $self->tableimport(format => "json", @_);}
 
 #
 # The individual import functions.
@@ -1111,7 +1119,7 @@ sub _import_csv
 	my(%opts) = @_;
 
 	my $handle = $opts{read_handle};
-	my $termtype = $opts{termtype};
+	my $termtype = $opts{termtype} // 'minterms';
 
 	my @vars;
 	my @functions;
@@ -1308,7 +1316,7 @@ sub _import_pla
 	#
 	# The attributes that may be overridden by the function's caller.
 	#
-	my @opt_atts = qw(algorithm title dc);
+	my @opt_atts = qw(algorithm title);
 }
 
 =head1 AUTHOR
