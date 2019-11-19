@@ -19,6 +19,8 @@ use Logic::TruthTable::Convert81 qw(:all);
 
 #
 #use Devel::Timer;
+#use Smart::Comments ('###'); 
+#
 # TBD: Parallelize the column-solving. Some
 # recommended modules below, choose later.
 #
@@ -27,7 +29,6 @@ use Logic::TruthTable::Convert81 qw(:all);
 #use Parallel::Loops;
 # or
 #use MCE;
-#use Smart::Comments ('###'); 
 #
 
 #
@@ -742,7 +743,6 @@ sub tableexport
 	}
 	elsif ($opts{format} eq 'pla')
 	{
-		$opts{type} //= 'fd';
 		return $self->_export_pla(%opts);
 	}
 
@@ -868,14 +868,18 @@ sub _export_pla
 
 	my $handle = $opts{write_handle};
 	my $w = $self->width;
+	my $lastrow = (1 << $w) - 1;
+	my $fmt = "%0${w}b";
 	my @columns;
 
 	$opts{title} //= $self->title;
+	$opts{type} //= 'fd';
 
 	#
 	# Print out the width, function names, variable names, output names.
 	#
-	print $handle ".i $w\n.o " . scalar $self->functions . "\n";
+	print $handle ".i $w\n";
+	print $handle ".o " . scalar $self->functions . "\n";
 	print $handle ".ilb " . join(" ", $self->vars) . "\n";
 	print $handle ".ob " . join(" ", $self->functions) . "\n";
 
@@ -918,11 +922,11 @@ sub _export_pla
 
 	for my $r_idx (0 .. $lastrow)
 	{
-		my @row = (split(//, sprintf($fmt, $r_idx)), '');
+		my $row = sprintf($fmt, $r_idx) . ' ';
 
-		push @row, shift @{ $columns[$_] } for (0 .. $self->_fn_width);
+		$row .= shift @{ $columns[$_] } for (0 .. $self->_fn_width);
 
-		$csv->print($handle, [@row]);
+		print $handle qq($row\n);
 	}
 
 	print ".e\n";
@@ -1073,6 +1077,7 @@ sub tableimport
 	#
 	$opts{algorithm} //= 'QuineMcCluskey';
 	$opts{format} //= 'json';
+	$opts{dc} //= $self->dc;
 
 	if (exists $opts{termtype} and $opts{termtype} !~ /minterms|maxterms/)
 	{
@@ -1316,7 +1321,107 @@ sub _import_pla
 	#
 	# The attributes that may be overridden by the function's caller.
 	#
-	my @opt_atts = qw(algorithm title);
+	my $termtype = $opts{termtype};
+	my $width = 0;
+	my $fcount = 0;
+	my(@functions, @vars);
+
+	#
+	# Codes to look for:
+	#   .i (width/no of vars),
+	#   .o (no of functions),
+	#   .ilb (var names),
+	#   .ob (function names),
+	#   .e (the end, stop reading).
+	#
+	my $line;
+
+	while ($line = <$handle>)
+	{
+		if ($line =~ m/^\.([a-z]*)(.*)$/)
+		{
+			my $op = $1;
+			if ($op eq 'i')
+			{
+				$width = $2;
+			}
+			elsif ($op eq 'o')
+			{
+				#
+				# We'll use this for error checking.
+				#
+				$fcount = $2;
+			}
+			elsif ($op eq 'ilb')
+			{
+				@vars = split(/ /, $2);
+			}
+			elsif ($op eq 'ob')
+			{
+				@functions = split(/ /, $2);
+			}
+			elsif ($op eq 'e')
+			{
+				last;
+			}
+		}
+		else
+		{
+			last;
+		}
+	}
+
+	my($termrefs, $dcrefs);
+
+	my $idx = 0;
+	while (my $row = <$handle>)
+	{
+		for my $c (0 .. $#functions)
+		{
+			my $field = 1 + $c + $width;
+
+			if ($row->[$field] !~ /[01]/)
+			{
+				push @{ $dcrefs->[$c] }, $idx;
+			}
+			elsif (($termtype eq 'minterms' and $row->[$field] eq '1') or
+				($termtype eq 'maxterms' and $row->[$field] eq '0'))
+			{
+				push @{ $termrefs->[$c] }, $idx;
+			}
+		}
+		$idx++;
+	}
+
+	#
+	# We've collected our variable names, function names, and terms.
+	# Let's make an object.
+	#
+	### dcrefs: $dcrefs
+	### termrefs: $termrefs
+	#
+	my $title = $opts{title} // "$width-input table created from import file";
+	my $algorithm = $opts{algorithm};
+	my $dc = $opts{dc};
+	my @columns;
+
+	for my $c (0 .. $#functions)
+	{
+		push @columns, {
+			dontcares => $dcrefs->[$c],
+			$termtype, $termrefs->[$c]
+		};
+	}
+
+	return Logic::TruthTable->new(
+		width => $width,
+		title => $title,
+		dc => $dc,
+		vars => [@vars],
+		functions => [@functions],
+		columns => [@columns],
+		algorithm => $algorithm,
+	);
 }
 
 =head1 AUTHOR
